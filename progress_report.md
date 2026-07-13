@@ -200,3 +200,131 @@ Every acceptance criterion in `specs/00-scaffold.md`, checked:
 
 **Next:** spec 01 (`01-data-bdd100k`) — but it is `draft`. It needs human approval before any code
 (CLAUDE.md §3), and BDD100K registration needs to be started, since that is the long-lead item.
+
+---
+
+## [SEQ-0003] Scope review against the "Grounded Driving Intelligence System" proposal
+
+**Date:** 2026-07-14 · **Spec:** — (cross-cutting) · **Status:** done
+
+### What
+
+Evaluated a revised project document (proposing six modules: open-vocab detection, grounding, VLM QA,
+**temporal understanding**, **risk assessment**, **scene report generation**, plus deployment) against
+the existing charter and spec backlog. Adopted three of its ideas, reframed two, and rejected two —
+then updated the register, five specs, the README, the auditor, and the honesty skill accordingly.
+
+- **Adopted as-is:** precision/recall alongside mAP (spec 02); **memory footprint** — model size on
+  disk + peak RSS — in the deployment benchmark (spec 05); the **scene report generator** (spec 09).
+- **Reframed:** **risk assessment** → measured via DriveLM's official planning/behaviour/safety
+  categories in spec 08, *not* a hand-rolled engine.
+- **Deferred:** **temporal reasoning** → new **spec 11**, optional stretch, demo-only, explicitly the
+  first thing cut.
+- **Rejected:** a rule-based risk engine with a "risk detection accuracy" metric; any temporal
+  accuracy number.
+- **New register rule — H9:** *no self-invented benchmark, no self-invented metric.*
+- **Fixed H5**, which was wrong (see below).
+
+### Why
+
+The document is a genuine improvement in *framing* — "Grounded Driving Intelligence System" tells a
+better story than "grounded perception", and explainable scene reports are a real differentiator. But
+two of its modules would have quietly destroyed the project's only real asset: that every claim
+survives scrutiny.
+
+**Why the risk engine was rejected.** It proposed a rule-based hazard estimator using "distance
+thresholds" and "relative positions", scored by "Risk Detection Accuracy". Two independent
+show-stoppers:
+
+1. **BDD100K is monocular with no camera calibration and no depth ground truth.** "Pedestrian close to
+   the lane boundary" is therefore not computable in metres — only in *pixels*, which is not distance.
+   A hazard rule built on pixel proximity is a demo wearing the costume of physics, and the first
+   interviewer to ask "close in what units?" ends the conversation.
+2. **There is no ground truth for "risk".** The accuracy would be measured against labels we invented,
+   using rules we wrote. That is circular — it measures our agreement with ourselves. It is precisely
+   the "unfalsifiable" failure the charter calls out in competing projects (§6: *"no fine-tuning, no
+   benchmark, no metrics — unfalsifiable"*).
+
+**But risk assessment did not need to be cut — only relocated.** DriveLM's official taxonomy already
+contains prediction / planning / behaviour questions ("is it safe to merge left?"). Those *are* risk
+reasoning, and they arrive with official ground truth and an official metric. So the capability is
+delivered **measured**, in spec 08, at **zero additional cost** — we were already computing
+per-category accuracy; we simply had not named the planning/behaviour rows "risk". This is strictly
+better than the proposal: the same headline, backed by a benchmark instead of by our own opinion.
+
+**Why temporal was deferred rather than adopted.** "Is the pedestrian approaching the road?",
+"trajectory trend", "hazard indicators" — this is trajectory prediction re-entering through the back
+door, i.e. the exact project that was deliberately abandoned in favour of this one. It also has no
+official benchmark (DriveLM and nuScenes-QA are keyframe-based), so any metric would again be
+self-invented. And it is the fastest way to overrun the schedule and miss the **spec-05 checkpoint**,
+which is the thing that makes the project defensible *at all*.
+
+There is an honest sliver, and spec 11 captures it: **Qwen2.5-VL natively accepts multiple images**, so
+consecutive frames can be fed to the already-fine-tuned model with **no tracker and no new
+architecture**. That is a legitimate qualitative demo. It is not a result, and spec 11 forbids it from
+ever carrying a number.
+
+### How
+
+**The most valuable thing this review produced was a correction to our own register.** H5 previously
+read *"No tracking, no trajectory prediction, no planning/control."* Read literally, that would have
+**forbidden answering DriveLM's own planning questions** — yet the charter itself lists *"Is it safe to
+merge left?"* as a flagship Stage-2 example. The rule was conflating two different things. H5 now
+distinguishes them explicitly:
+
+> **the module vs. the question** — we ship no tracker, no path predictor, no planner, and emit no
+> driving commands; but *answering a benchmark's planning question in natural language is a VQA task,
+> not a planner.*
+
+Left unfixed, this would have surfaced as a contradiction midway through spec 08, with the register
+appearing to forbid the project's own headline result.
+
+**H9 was added** to generalise what H2 only said about VQA: *if a capability has no official ground
+truth, it gets no accuracy number.* This is the rule that makes the risk-engine and temporal-metric
+rejections principled rather than ad hoc, and it will keep saying no long after this conversation is
+forgotten. The spec-04 grounding set is named as the single sanctioned exception — permitted **only**
+because its construction, bias, and drop-rate are fully documented, and still labelled self-built
+wherever it appears.
+
+**Scene report — the H6 design problem.** Composing detector boxes *and* VLM answers into one summary
+is the most natural way to imply a single joint system, which H6 exists to prevent. Resolved by
+requiring **per-line model attribution** in the report (`[detector — Stage 1]` / `[VLM — Stage 2]`),
+with an acceptance test asserting no unattributed sentence can be emitted. The report is thereby a
+*presentation layer over two models*, and the UI never lets a viewer forget it.
+
+**Rejected alternatives:** adding a `10-risk-engine` spec (would have needed depth we don't have);
+scoring the scene report with DriveLM's language metrics (the metric only partially fits the task, and
+a bad-fit metric is worse than an honest "unmeasured"); promoting temporal into core scope (schedule
+risk against the checkpoint, with no claimable output at the end of it).
+
+### Issues & resolutions
+
+1. **A latent self-contradiction in our own honesty register, caught only because the new document
+   pushed on it.** H5 as written forbade planning; the charter's own Stage-2 example asks a planning
+   question. Nobody had noticed because no spec had yet had to reconcile them. Fixed by rewriting H5
+   around the module/question distinction. *This is the argument for reviewing incoming ideas against
+   the register rather than waving them through — the register got audited too.*
+
+2. **`H1–H8` was hard-coded in nine places** across `CLAUDE.md`, three specs, two commands, the skill,
+   the agent, and the session-start hook. Adding H9 meant they all silently became wrong — the kind of
+   drift where the constitution says nine rules and the auditor checks eight. Swept them all to
+   `H1–H9` and grepped to confirm zero stragglers remain.
+
+### Verification
+
+```
+grep -rn "H1–H8|H1-H8"        → no stale references remain
+uv run ruff check .           → All checks passed!
+uv run pytest                 → 34 passed
+bash scripts/smoke.sh         → SMOKE OK (device: mps)
+```
+
+Docs-and-specs change only; no source code touched, so the test suite is unchanged and green as a
+regression check rather than as new evidence.
+
+Register now H1–H9; backlog now 00–11 (11 = optional stretch). Risk assessment has a home (spec 08,
+measured), the scene report has a home (spec 09, attributed + labelled), and temporal has a home
+(spec 11, demo-only, first to cut). **No new claim was created that the project cannot defend.**
+
+**Next:** unchanged — spec 01 needs approval, and BDD100K/nuScenes registration is still the long-lead
+item blocking everything downstream.

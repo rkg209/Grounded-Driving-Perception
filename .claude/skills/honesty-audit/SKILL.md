@@ -1,6 +1,6 @@
 ---
 name: honesty-audit
-description: Apply the Honesty Register (H1–H8) to any claim, README text, metrics table, spec, or commit message before it ships. Use whenever writing user-facing text or reporting a number.
+description: Apply the Honesty Register (H1–H9) to any claim, README text, metrics table, spec, or commit message before it ships. Use whenever writing user-facing text or reporting a number.
 ---
 
 # Honesty audit
@@ -17,10 +17,11 @@ register is not modesty; it is the source of the project's credibility.
 | H2 | Official DriveLM split + official metric only | self-written questions; re-splitting; self-grading |
 | H3 | "Edge-deployed" = quantized + ONNX + benchmarked | "deployed", "in-car", "production", "real-time in a vehicle" |
 | H4 | Camera-only | any LiDAR/radar/fusion phrasing |
-| H5 | No tracking/prediction/planning | "predicts pedestrian intent", "plans a manoeuvre" |
-| H6 | Two separate models | "the system sees and reasons" as one pipeline |
+| H5 | No tracker/predictor/planner **as a module** (answering DriveLM's planning *questions* is fine) | "predicts pedestrian intent", "plans a manoeuvre", any driving command |
+| H6 | Two separate models | "the system sees and reasons" as one pipeline; an unattributed composed scene report |
 | H7 | Failures measured, not hidden | a table missing its worst class; a demo shown as a result; a metric from the synthetic fixture |
 | H8 | No metric without its paired baseline | fine-tuned mAP alone; a latency win with no accuracy |
+| H9 | **No self-invented benchmark or metric** | "risk detection accuracy: 87%" from our own rules and our own labels; a temporal-QA score on questions we wrote; **any** number attached to the scene report or risk overlay |
 
 ## The test to apply to every sentence
 
@@ -43,6 +44,19 @@ it demonstrates that you know what you actually did:
 
 The right column is what a strong candidate sounds like. The left column is what everyone else's repo
 says.
+
+## The "risk" trap specifically
+
+"Risk assessment" is the most seductive overclaim available to this project, because it sounds like
+exactly what an ADAS team wants. The rule:
+
+- **Measured risk = DriveLM's official planning/behaviour/safety categories** (spec 08). This is a
+  real, defensible result.
+- **A hazard score from our own heuristics gets NO number** (H9). BDD100K has no depth or calibration,
+  so pixel proximity is not distance; and "risk detection accuracy" against labels we invented,
+  scored by rules we wrote, is circular. It ships as a badged demo or not at all.
+
+If you see `Risk Level: HIGH` next to anything resembling a percentage, that is an H9 violation.
 
 ## Specific things to catch
 

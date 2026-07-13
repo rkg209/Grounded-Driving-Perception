@@ -6,7 +6,7 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 
 echo "=== Grounded Driving Perception — session start ==="
 echo
-echo "Read CLAUDE.md before acting. Honesty Register H1-H8 is the highest law of this repo."
+echo "Read CLAUDE.md before acting. Honesty Register H1-H9 is the highest law of this repo."
 echo "Training NEVER runs in-session (M4 laptop). Emit a SLURM script via /train-job."
 echo
 

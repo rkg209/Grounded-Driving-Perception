@@ -12,9 +12,13 @@ record its **zero-shot mAP**. This number is the bar every later Stage-1 claim i
 
 - **In:** `IDEA-Research/grounding-dino-tiny` (no fine-tuning), BDD val (spec 01), the 10-class
   prompt.
-- **Out:** `runs/02-zeroshot/<ts>/metrics.json` — mAP, mAP@50, per-class AP, plus the config,
-  checkpoint id, split name, image count, and git SHA. A metric without that provenance is a rumour
-  (CLAUDE.md §7).
+- **Out:** `runs/02-zeroshot/<ts>/metrics.json` — mAP, mAP@50, per-class AP, **precision and recall
+  at the operating threshold**, plus the config, checkpoint id, split name, image count, and git SHA.
+  A metric without that provenance is a rumour (CLAUDE.md §7).
+
+  *(Precision/recall are reported alongside mAP because they are what a non-detection specialist
+  reads: mAP is threshold-free and abstract, while "at our operating point we catch X% of pedestrians
+  and Y% of our pedestrian boxes are real" is the sentence an ADAS reviewer actually wants.)*
 
 ## Approach
 

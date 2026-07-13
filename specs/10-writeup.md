@@ -32,7 +32,7 @@ and reproduction instructions that actually work.
    is a claim like any other.
 6. The interview one-liners from the charter (Appendix) get a section — they are the artifact's
    defence in conversation.
-7. **Final `/claims-check` over the whole repo** against H1–H8. Nothing ships until it is clean.
+7. **Final `/claims-check` over the whole repo** against H1–H9. Nothing ships until it is clean.
 
 ## Acceptance criteria
 
@@ -47,7 +47,7 @@ and reproduction instructions that actually work.
 
 ## Honesty contract
 
-**All of H1–H8.** This is the spec where overclaiming would actually reach a reader, so it is where
+**All of H1–H9.** This is the spec where overclaiming would actually reach a reader, so it is where
 the register earns its keep. The reflex to round a number up, to drop the losing class from a table,
 or to write "deployed" without its definition — that reflex shows up here. Do not indulge it: the
 project's entire differentiator is that its claims survive scrutiny.

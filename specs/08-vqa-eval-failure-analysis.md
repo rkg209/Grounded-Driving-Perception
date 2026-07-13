@@ -8,6 +8,25 @@ Evaluate **base vs LoRA-fine-tuned** Qwen2.5-VL on DriveLM's **official val spli
 **official metric**, break the result down **per question category**, and analyse the failures —
 including hallucinations — openly.
 
+## This spec *is* the risk-assessment result
+
+DriveLM's official taxonomy already contains **prediction / planning / behaviour** questions —
+"is it safe to merge left?", "what should the ego vehicle watch for?". Those questions *are* risk
+reasoning, and they come with **official ground truth and an official metric**.
+
+So risk assessment is delivered here, measured, rather than as a separate hand-rolled engine. This is
+deliberate and it is the honest path:
+
+- A rule-based risk engine (distance thresholds, relative position) would need **metric distance**,
+  which a monocular BDD100K frame **cannot give** — no calibration, no depth ground truth. Pixel
+  proximity is not distance, and dressing it up as one is pseudo-precision.
+- "Risk detection accuracy" against labels we invented, scored by rules we wrote, is **not evidence**
+  (H9). It is the unfalsifiable demo the charter explicitly warns against.
+
+**Report the planning/behaviour categories as the risk headline**, and say plainly that risk here
+means *"accuracy on the benchmark's safety-reasoning questions"*, not a calibrated hazard probability.
+A heuristic risk overlay may appear in the demo (spec 09) as an explicitly **unmeasured** illustration.
+
 ## Inputs / outputs
 
 - **In:** base `Qwen2.5-VL-3B-Instruct`, the spec-07 adapter, `data/drivelm/val.jsonl` (official).
@@ -24,7 +43,10 @@ including hallucinations — openly.
 2. Evaluate the **base model first**, then the fine-tuned one, on the identical split, with
    identical generation settings (greedy; record `max_new_tokens`, temperature).
 3. **Per-category accuracy** (perception / prediction / planning / behaviour). A single aggregate
-   number hides the story: models typically gain most on perception and least on planning.
+   number hides the story: models typically gain most on perception and least on planning. The
+   planning/behaviour rows are the **risk-reasoning headline** — and if the fine-tune gains on
+   perception while planning stays flat, that is the honest and interesting finding, not something
+   to average away.
 4. **Failure analysis** (`failures.md`) — sample ≥30 errors, categorise them, and show images:
    - hallucinated objects that are not in the scene,
    - correct object, wrong attribute/count,
@@ -45,6 +67,10 @@ including hallucinations — openly.
 ## Honesty contract
 
 - **H2** — official split, official metric. No self-invented questions. No self-grading.
+- **H9** — **no invented risk metric.** "Risk detection accuracy" must never appear unless it is
+  DriveLM's own scored categories. A hazard score from our own rules gets **no number**, ever.
+- **H5** — answering DriveLM's planning questions in language is in scope; **shipping a planner is
+  not.** We output an answer to a benchmark question, never a driving command.
 - **H8** — the fine-tuned number ships **only** beside the base number. The delta is the result.
 - **H7** — **failures are a deliverable, not an embarrassment.** "Does your VLM hallucinate?" →
   "Yes; here is the rate, the categories, and the examples." That answer is worth more to a Honda

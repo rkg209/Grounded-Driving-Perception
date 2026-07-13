@@ -37,6 +37,10 @@ vision-based AI models").
 4. **Benchmark** on the M4 CPU via ONNX Runtime: ≥50 warmup iterations (discard), then ≥200 timed;
    report **p50, p95, p99, and FPS** — never a bare mean, which hides tail latency that matters for
    a real perception loop. Fix threads and state them.
+   Also record **memory**: on-disk model size (fp32 vs INT8) and **peak RSS during inference**. An
+   edge reviewer's second question after latency is always "does it fit?" — a model that hits 30 FPS
+   but needs 6 GB of RAM is not deployable, and reporting speed without footprint tells half the
+   story.
 5. **Re-evaluate mAP** for each variant (fp32 PyTorch, fp32 ONNX, INT8 ONNX) on the same val split,
    then plot accuracy vs p50 latency. That plot *is* the deliverable.
 
@@ -45,8 +49,8 @@ vision-based AI models").
 1. `model.onnx` loads in ONNX Runtime and its outputs match PyTorch within tolerance on fixture
    images (a numerical parity test, not a vibe check).
 2. INT8 model produced and benchmarked.
-3. `latency.json`: p50/p95/p99 + FPS for each variant, with hardware, thread count, and iteration
-   count recorded.
+3. `latency.json`: p50/p95/p99 + FPS **+ model size on disk + peak RSS** for each variant, with
+   hardware, thread count, and iteration count recorded.
 4. `metrics.json`: mAP for **all three** variants on the same val split — quantifying the accuracy
    *cost* of quantization, not just its speed benefit.
 5. `curve.png`: accuracy vs latency, one point per variant.
@@ -64,4 +68,7 @@ vision-based AI models").
 
 ## Out of scope
 
-TensorRT (no Jetson available — say so); no VLM export (a 3B VLM to ONNX is a project of its own).
+- **TensorRT** — no Jetson available. It is named as future work, never as something we did.
+- **OpenVINO** — optional and Intel-only; the M4 is our edge target, so it is not attempted. If it is
+  ever run, it is an *additional* point on the curve, not a replacement for the honest one.
+- **No VLM export** — a 3B VLM to ONNX is a project of its own.

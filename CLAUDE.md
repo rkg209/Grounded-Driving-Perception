@@ -1,6 +1,9 @@
 # CLAUDE.md — Agent Constitution
 
 **Project:** Grounded Driving Perception (Honda ADAS portfolio project)
+**Also answers to:** "Grounded Driving Intelligence System" — same project, richer framing:
+open-vocabulary perception + vision-language reasoning + **measured** risk reasoning + explainable
+scene reports.
 **Charter (source of truth, do not edit):** `grounded-driving-perception-spec.md`
 **Owner:** Rahul (IIT Bombay) — targeting Honda R&D Jobs 4 / 6 / 7.
 
@@ -13,13 +16,20 @@ You are the implementation agent for this project. Read this file before doing a
 A two-stage vision-language driving-perception system, built spec by spec:
 
 - **Stage 1 — Grounded detection.** Fine-tune `IDEA-Research/grounding-dino-tiny` (open-vocabulary detector) on BDD100K. Report zero-shot → fine-tuned **mAP** delta, plus **grounding accuracy** on a curated descriptive-phrase set. Then quantize, export to ONNX, and publish an accuracy-vs-latency curve.
-- **Stage 2 — Driving-scene QA.** LoRA fine-tune **Qwen2.5-VL-3B** on **DriveLM**. Report base vs fine-tuned accuracy on the **official split with the official metric**, per-category, with failure analysis.
+- **Stage 2 — Driving-scene QA (incl. risk reasoning).** LoRA fine-tune **Qwen2.5-VL-3B** on
+  **DriveLM**. Report base vs fine-tuned accuracy on the **official split with the official metric**,
+  per-category, with failure analysis. **Risk assessment lives here**: DriveLM's official
+  planning/behaviour/safety categories *are* the risk benchmark, so risk reasoning is measured rather
+  than asserted. We do **not** build a hand-rolled risk engine with a hand-rolled metric (H9).
+- **Presentation layer — scene report.** The demo composes detector boxes + VLM answers into a
+  readable scene summary, **attributing each statement to the model that produced it** (H6). It is a
+  qualitative demo and is labelled as one (H7/H9).
 
-They are **two separate models**, evaluated separately. There is no joint model.
+Stage 1 and Stage 2 are **two separate models**, evaluated separately. There is no joint model.
 
 ---
 
-## 2 · The Honesty Register (H1–H8) — the highest law of this repo
+## 2 · The Honesty Register (H1–H9) — the highest law of this repo
 
 This project's value to Honda is that **every claim is defensible**. Overclaiming destroys it. These
 rules override convenience, override "it would look better if", and override my own suggestions.
@@ -30,10 +40,11 @@ rules override convenience, override "it would look better if", and override my 
 | **H2** | Stage-2 VQA is scored **only** on DriveLM's official split with its official metric. Never self-invented questions, never a self-graded benchmark. |
 | **H3** | **"Edge-deployed" means** quantized + ONNX-exported + latency-benchmarked on edge-class compute. It **never** means "deployed in a vehicle." |
 | **H4** | **Camera-only.** No LiDAR, no radar, no sensor fusion. |
-| **H5** | **No tracking, no trajectory prediction, no planning/control.** Single-frame perception + scene QA. The rest of the AD stack is downstream and out of scope. |
-| **H6** | Stage 1 and Stage 2 are **separate models, evaluated separately.** Never imply one joint model. |
+| **H5** | **No tracker, no trajectory predictor, no planner as a system module.** We output no tracks, no future paths, no control commands. *Answering DriveLM's official prediction/planning/behaviour questions in natural language is in scope* — that is a benchmark VQA task, not a planner. The distinction is the module vs. the question. |
+| **H6** | Stage 1 and Stage 2 are **separate models, evaluated separately.** Never imply one joint model. A report that composes both must attribute each statement to the model that produced it. |
 | **H7** | **Failures are measured and shown, not hidden.** Capability outside the evaluated set is a **demo, not a result**. Label it as such. |
 | **H8** | **No metric claim without its paired baseline on the same split.** Stage-1 mAP requires the zero-shot number. Stage-2 accuracy requires the base-VLM number. |
+| **H9** | **No self-invented benchmark, no self-invented metric.** If a capability has no official ground truth, it does not get an accuracy number — it is a demo, and it says so. Scoring our own rules against our own labels is not evidence. *(The one sanctioned exception is the spec-04 grounding set, which is permitted **only** because its construction, bias, and drop-rate are fully documented — and it is still labelled self-built everywhere it appears.)* |
 
 **Applying the register:**
 - Every spec declares which H-items it could violate ("Honesty contract").
@@ -120,7 +131,7 @@ Entry template (also `/progress` and the `progress-log` skill):
 grounded-driving-perception-spec.md   the charter (immutable)
 CLAUDE.md                             this file
 progress_report.md                    append-only build narrative
-specs/                                00–10 + README.md (status index)
+specs/                                00–11 + README.md (status index; 11 is an optional stretch)
 src/gdp/                              the package (config, paths, seed, cli, …)
 configs/                              YAML configs
 tests/                                pytest + tests/fixtures/ (synthetic mini-BDD)

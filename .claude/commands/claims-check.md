@@ -1,5 +1,5 @@
 ---
-description: Audit every claim in the repo against the Honesty Register (H1–H8)
+description: Audit every claim in the repo against the Honesty Register (H1–H9)
 argument-hint: [file or "all"]
 ---
 

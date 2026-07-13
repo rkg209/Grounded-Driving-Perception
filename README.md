@@ -11,13 +11,27 @@ Open-vocabulary road-user detection + language grounding + driving-scene VQA, ed
 Two stages, **two separate models, evaluated separately**:
 
 1. **Grounded detection** — find any road user described in natural language ("the cyclist in the
-   right lane"). Grounding-DINO fine-tuned on BDD100K. Reported as zero-shot → fine-tuned **mAP**,
-   plus **grounding accuracy** (IoU ≥ 0.5) on a curated descriptive-phrase set.
-2. **Driving-scene QA** — answer questions about a scene ("is it safe to merge left?"). Qwen2.5-VL-3B
-   LoRA fine-tuned on **DriveLM**, scored on the **official split with the official metric**, base vs
-   fine-tuned, per category, with failure cases shown.
+   right lane"). Grounding-DINO fine-tuned on BDD100K. Reported as zero-shot → fine-tuned **mAP**
+   (plus precision/recall), and **grounding accuracy** (IoU ≥ 0.5) on a curated descriptive-phrase set.
+2. **Driving-scene QA, including risk reasoning** — answer questions about a scene ("is it safe to
+   merge left?"). Qwen2.5-VL-3B LoRA fine-tuned on **DriveLM**, scored on the **official split with
+   the official metric**, base vs fine-tuned, per category, with failure cases shown.
 
-Then: quantize → ONNX → latency/FPS benchmark → **accuracy-vs-latency curve**.
+Then: quantize → ONNX → latency/FPS/memory benchmark → **accuracy-vs-latency curve**.
+
+A demo composes both models into a readable **scene report**, with every line attributed to the model
+that produced it.
+
+## About "risk assessment"
+
+Risk reasoning here is **measured, not asserted**: it is the accuracy on DriveLM's official
+planning/behaviour/safety questions — real ground truth, real metric.
+
+What this project deliberately does **not** do is ship a hand-written rule-based hazard engine with a
+"risk detection accuracy" score. BDD100K is monocular with no calibration or depth ground truth, so
+"distance to the lane boundary" isn't computable in metres, and scoring our own rules against our own
+labels would be circular. Any heuristic risk overlay in the demo is badged as an unmeasured
+illustration.
 
 ## Honest scope — what this is NOT
 
@@ -29,8 +43,11 @@ Then: quantize → ONNX → latency/FPS benchmark → **accuracy-vs-latency curv
   scene understanding; the rest of the AD stack is downstream and deliberately out of scope.
 - **Not one joint model.** Stage 1 and Stage 2 are separate models that share a theme, not weights.
 - **The VLM can hallucinate.** Failures are reported per category, not hidden.
+- **No self-invented benchmarks.** Capabilities without official ground truth — the scene report, any
+  heuristic risk overlay, multi-frame reasoning — are shown as **labelled demos with no accuracy
+  number**, never as results.
 
-The full rules are the Honesty Register (H1–H8) in [`CLAUDE.md`](CLAUDE.md); they are enforced in
+The full rules are the Honesty Register (H1–H9) in [`CLAUDE.md`](CLAUDE.md); they are enforced in
 review by `/claims-check`.
 
 ## Quickstart
