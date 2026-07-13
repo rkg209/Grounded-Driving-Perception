@@ -1,7 +1,7 @@
 # Spec backlog
 
 The project is built one spec at a time. **Only `approved` specs may be implemented.** Update the
-status column here as part of the change that moves a spec (CLAUDE.md §8).
+status column here as part of the change that moves a spec (CLAUDE.md §9).
 
 | # | Spec | Status | Compute | Headline output |
 |---|------|--------|---------|-----------------|

@@ -328,3 +328,86 @@ measured), the scene report has a home (spec 09, attributed + labelled), and tem
 
 **Next:** unchanged — spec 01 needs approval, and BDD100K/nuScenes registration is still the long-lead
 item blocking everything downstream.
+
+---
+
+## [SEQ-0004] Ban `Co-Authored-By` trailers; purge them from git history
+
+**Date:** 2026-07-14 · **Spec:** — (tooling) · **Status:** done
+
+### What
+
+- Added **CLAUDE.md §7 "Git rules"**: never add a `Co-Authored-By:` trailer to a commit message —
+  explicitly overriding any default instruction to do so. Sections renumbered (Conventions → §8,
+  Before you say "done" → §9), and the four stale `§7`/`§8` cross-references in `specs/README.md`,
+  `specs/02-zeroshot-baseline.md`, `src/gdp/paths.py` and `src/gdp/config.py` were fixed to match.
+- Added a **fourth `guard-bash` rule** that blocks any Bash command containing `Co-Authored-By`,
+  so the ban is mechanical rather than a matter of memory.
+- **Rewrote both existing commits** to strip the trailer they already carried.
+
+### Why
+
+The trailer was breaking the user's pushes to GitHub. Two separate problems needed solving, and only
+one of them was the history:
+
+1. **The existing history was already contaminated** — both commits (`ec107cf`, `b129158`) ended with
+   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. Since a push is what fails, a rule that
+   only governs *future* commits would have left the repo unpushable anyway.
+2. **The trailer is added by a default instruction**, not by choice. A rule in CLAUDE.md is necessary
+   but, being a default I am told to follow elsewhere, it is exactly the kind of thing that quietly
+   reasserts itself twenty commits from now. So it is also enforced by a hook that inspects the
+   command before it runs.
+
+The user also asked to confirm `progress_report.md` exists and that CLAUDE.md mandates maintaining it.
+**Both were already in place** from SEQ-0001 — the file has entries SEQ-0001 through SEQ-0003, and
+CLAUDE.md §5 makes an entry mandatory after every change (with a Stop hook that blocks the session
+while the file is stale). Nothing to add there; this entry is itself the demonstration.
+
+### How
+
+`git filter-branch -f --msg-filter 'grep -v -i "^Co-Authored-By:"' -- --all`, safe because the repo has
+**no remote configured**, so no published history could be broken. Both commits were rewritten
+(`ec107cf → ceccad6`, `b129158 → b294d93`); the contents are byte-identical, only the messages changed.
+
+**The part that was nearly missed:** after `filter-branch` reported success, `git log --all` *still*
+found the trailer. `filter-branch` preserves the pre-rewrite commits under `refs/original/` as a
+backup, and those refs are pushable — so the repo would have carried the old commits to GitHub and the
+push would have failed anyway, with the branch itself looking perfectly clean. Deleted the backup refs,
+expired the reflog, and ran `git gc --prune=now`; only then did the objects actually disappear. *A
+history rewrite is not finished when the branch looks right — it is finished when `--all --reflog`
+comes back empty.*
+
+**Rejected alternatives:** `git reset --soft` + recommit (loses the authored timestamps and is
+fiddlier for more than one commit); leaving history alone and only fixing future commits (would not
+have fixed the push, which was the actual complaint).
+
+### Issues & resolutions
+
+1. **`filter-branch` "succeeded" while the trailer was still reachable.** Cause: `refs/original/`
+   backup refs, plus reflog entries, still pointed at the original commits. Resolved by deleting those
+   refs, expiring the reflog, and garbage-collecting with `--prune=now`. Verified with
+   `git log --all --reflog --format='%B' | grep -i co-authored-by` returning **nothing**.
+
+2. **Renumbering CLAUDE.md silently broke four cross-references.** Inserting the new §7 pushed
+   Conventions from §7 to §8, so `paths.py` and `config.py` docstrings and two specs were now citing
+   the wrong section — the sort of rot that makes a constitution untrustworthy precisely because each
+   individual instance is too small to notice. Grepped for every `CLAUDE.md §N` reference and fixed
+   all four.
+
+### Verification
+
+```
+git log --all --reflog | grep -i "co-authored-by"   → no output (CLEAN)
+git log --oneline                                   → b294d93, ceccad6 (both messages trailer-free)
+git remote -v                                       → none (rewrite was safe)
+
+guard-bash: git commit ... Co-Authored-By ...       → BLOCKED (exit 2)
+guard-bash: git commit -m "fix thing"               → allowed (exit 0)
+
+uv run ruff check .                                 → All checks passed!
+uv run pytest                                       → 34 passed
+bash scripts/smoke.sh                               → SMOKE OK
+```
+
+The ban is now enforced in three places: the constitution (CLAUDE.md §7), the hook (`guard-bash.sh`
+rule 4), and the history (purged). **This commit is the first one written under the new rule.**

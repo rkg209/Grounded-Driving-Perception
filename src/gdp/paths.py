@@ -27,7 +27,7 @@ def resolve(path: str | Path) -> Path:
 def run_dir(spec: str, *, create: bool = True) -> Path:
     """A timestamped output directory for one spec's run: runs/<spec>/<timestamp>/.
 
-    Metrics always land in a file here (CLAUDE.md §7) so a result can never exist only in prose.
+    Metrics always land in a file here (CLAUDE.md §8) so a result can never exist only in prose.
     """
     d = resolve("runs") / spec / datetime.now().strftime("%Y%m%d-%H%M%S")
     if create:

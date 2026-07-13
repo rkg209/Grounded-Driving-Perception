@@ -1,6 +1,6 @@
 """YAML → dataclass configuration, validated on load.
 
-No magic constants live in code (CLAUDE.md §7): every tunable is declared here with a default,
+No magic constants live in code (CLAUDE.md §8): every tunable is declared here with a default,
 loaded from `configs/*.yaml`, and validated before use. Unknown keys are an error, not a shrug —
 a silently-ignored typo in a config is how a "result" becomes a lie.
 """

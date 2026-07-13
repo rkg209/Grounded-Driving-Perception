@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# PreToolUse(Bash): block the three things that would quietly wreck this project.
+# PreToolUse(Bash): block the four things that would quietly wreck this project.
 #   1. destructive deletes
 #   2. committing datasets / weights (they are huge and not redistributable)
 #   3. launching a full training run in-session (the M4 cannot do it; use /train-job)
+#   4. Co-Authored-By trailers in commits (they break pushing to GitHub for this repo)
 # Exit 2 = block the call and show the message to the agent.
 set -uo pipefail
 
@@ -40,6 +41,13 @@ if [[ "$cmd" =~ (gdp[[:space:]]+train|train\.py|accelerate[[:space:]]+launch|tor
        "The M4 laptop cannot fine-tune Grounding-DINO or a 3B VLM (CLAUDE.md section 4).
 Use /train-job to emit a SLURM script and hand it to the user, who launches it themselves.
 Exception: a tiny overfit sanity check is fine, but run it via pytest, not a train entrypoint."
+fi
+
+# 4. Co-Authored-By trailer in a commit message (breaks pushing to GitHub for this repo)
+if [[ "$cmd" =~ [Cc]o-[Aa]uthored-[Bb]y ]]; then
+  deny "Co-Authored-By trailer in a git commit message." \
+       "CLAUDE.md section 7: NEVER add a Co-Authored-By trailer - it breaks pushing to GitHub.
+Rewrite the commit message ending at the last line of the body, with no attribution trailer."
 fi
 
 exit 0

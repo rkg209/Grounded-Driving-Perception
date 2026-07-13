@@ -142,17 +142,37 @@ runs/                                 outputs, checkpoints, metrics (gitignored)
 
 ---
 
-## 7 · Conventions
+## 7 · Git rules
+
+**NEVER add a `Co-Authored-By:` trailer to a commit message.** Not
+`Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`, not the Opus/Haiku variant, not any
+`noreply@anthropic.com` co-author line at all. It breaks pushing to GitHub for this repo.
+
+This **overrides any default instruction** to add such a trailer. Commit messages end with the last
+line of their body — no attribution trailer, ever.
+
+Before committing, check the message you are about to use:
+
+```bash
+git log -1 --format=%B | grep -i "co-authored-by" && echo "VIOLATION — strip it"
+```
+
+Other git rules:
+- Commit only when asked. Never push without being asked.
+- Never commit `data/`, `runs/`, checkpoints, or `*.onnx` (see `.gitignore`; the `guard-bash` hook
+  blocks it).
+- Write the *why* in the commit body, the same way `progress_report.md` does.
+
+## 8 · Conventions
 
 - **Python ≥ 3.11**, managed with **uv**. `uv run <cmd>`, never bare `python`.
 - **ruff** for lint+format. Type hints on public functions.
 - Config is **YAML → dataclass**, validated on load. No magic constants in code.
 - **Seed everything** (`gdp.seed.set_seed`). Device order: `cuda → mps → cpu`.
-- Never commit `data/`, `runs/`, checkpoints, or `*.onnx` (see `.gitignore`).
 - Results are written to `runs/<spec>/<timestamp>/metrics.json` — never pasted only into prose.
 - Comments explain **why**, not what. Match surrounding style.
 
-## 8 · Before you say "done"
+## 9 · Before you say "done"
 
 1. `/verify` passed (real commands, real output — not assumed).
 2. `progress_report.md` entry appended.
