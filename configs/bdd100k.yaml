@@ -1,0 +1,11 @@
+# Real BDD100K. Requires the dataset to be downloaded (spec 01) — it is NOT in the repo.
+# Cluster use:  uv run gdp <cmd> -c configs/default.yaml -c configs/bdd100k.yaml
+#
+# Nothing here works until spec 01 is implemented; the paths are the contract it must satisfy.
+
+dataset:
+  name: bdd100k
+  root: data/bdd100k/images/100k
+  annotations: data/bdd100k/labels/det_20/det_val_coco.json
+
+device: auto

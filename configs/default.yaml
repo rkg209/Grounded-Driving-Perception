@@ -1,0 +1,39 @@
+# Default config — runs on the M4 laptop against the synthetic fixture, with zero downloads.
+# Override with a second -c file (merged left-to-right), e.g.:
+#   uv run gdp info -c configs/default.yaml -c configs/bdd100k.yaml
+
+seed: 42
+device: auto # auto → cuda (cluster) → mps (M4) → cpu
+
+paths:
+  data_root: data
+  runs_root: runs
+
+dataset:
+  name: mini_bdd
+  root: tests/fixtures/mini_bdd
+  annotations: tests/fixtures/mini_bdd/annotations.json
+  classes:
+    - pedestrian
+    - rider
+    - car
+    - truck
+    - bus
+    - train
+    - motorcycle
+    - bicycle
+    - traffic light
+    - traffic sign
+
+detector: # Stage 1
+  model_id: IDEA-Research/grounding-dino-tiny
+  box_threshold: 0.25
+  text_threshold: 0.25
+  # Must be true to export ONNX (custom MS-deform-attn kernels are not exportable). Spec 05.
+  disable_custom_kernels: false
+
+vlm: # Stage 2 — a SEPARATE model from the detector (H6)
+  model_id: Qwen/Qwen2.5-VL-3B-Instruct
+  max_new_tokens: 128
+  lora_r: 16
+  lora_alpha: 32

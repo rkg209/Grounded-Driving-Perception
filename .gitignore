@@ -1,0 +1,25 @@
+# Datasets and outputs — NEVER commit (guarded by .claude/hooks/guard-bash.sh)
+data/
+runs/
+checkpoints/
+*.onnx
+*.pt
+*.pth
+*.safetensors
+wandb/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Allow test fixtures (tiny, synthetic, must be committed)
+!tests/fixtures/**
