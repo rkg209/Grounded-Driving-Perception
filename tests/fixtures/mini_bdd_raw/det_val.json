@@ -1,0 +1,112 @@
+[
+  {
+    "name": "scene_000.jpg",
+    "labels": [
+      {
+        "category": "pedestrian",
+        "box2d": {
+          "x1": 12,
+          "y1": 203,
+          "x2": 108,
+          "y2": 240
+        }
+      },
+      {
+        "category": "rider",
+        "box2d": {
+          "x1": 90,
+          "y1": 192,
+          "x2": 134,
+          "y2": 264
+        }
+      },
+      {
+        "category": "car",
+        "box2d": {
+          "x1": 22,
+          "y1": 187,
+          "x2": 107,
+          "y2": 232
+        }
+      }
+    ]
+  },
+  {
+    "name": "scene_001.jpg",
+    "labels": [
+      {
+        "category": "truck",
+        "box2d": {
+          "x1": 500,
+          "y1": 258,
+          "x2": 542,
+          "y2": 310
+        }
+      },
+      {
+        "category": "bus",
+        "box2d": {
+          "x1": 98,
+          "y1": 226,
+          "x2": 197,
+          "y2": 265
+        }
+      },
+      {
+        "category": "train",
+        "box2d": {
+          "x1": 19,
+          "y1": 244,
+          "x2": 73,
+          "y2": 328
+        }
+      }
+    ]
+  },
+  {
+    "name": "scene_002.jpg",
+    "labels": [
+      {
+        "category": "motorcycle",
+        "box2d": {
+          "x1": 260,
+          "y1": 188,
+          "x2": 362,
+          "y2": 274
+        }
+      },
+      {
+        "category": "bicycle",
+        "box2d": {
+          "x1": 482,
+          "y1": 188,
+          "x2": 591,
+          "y2": 276
+        }
+      }
+    ]
+  },
+  {
+    "name": "scene_003.jpg",
+    "labels": [
+      {
+        "category": "traffic light",
+        "box2d": {
+          "x1": 52,
+          "y1": 54,
+          "x2": 103,
+          "y2": 116
+        }
+      },
+      {
+        "category": "traffic sign",
+        "box2d": {
+          "x1": 314,
+          "y1": 81,
+          "x2": 362,
+          "y2": 152
+        }
+      }
+    ]
+  }
+]

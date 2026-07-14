@@ -6,7 +6,7 @@ status column here as part of the change that moves a spec (CLAUDE.md §9).
 | # | Spec | Status | Compute | Headline output |
 |---|------|--------|---------|-----------------|
 | 00 | [scaffold](00-scaffold.md) | **done** | laptop | package, config, CLI, fixtures, tests, smoke |
-| 01 | [data-bdd100k](01-data-bdd100k.md) | draft | laptop + cluster | BDD100K → COCO-style; class↔prompt-span mapping |
+| 01 | [data-bdd100k](01-data-bdd100k.md) | **done** | laptop + cluster | BDD100K → COCO-style; class↔prompt-span mapping |
 | 02 | [zeroshot-baseline](02-zeroshot-baseline.md) | draft | cluster (laptop subset) | **zero-shot mAP — the bar for H8** |
 | 03 | [finetune-detector](03-finetune-detector.md) | draft | cluster | **zero-shot → fine-tuned mAP delta (Stage-1 headline)** |
 | 04 | [grounding-eval-set](04-grounding-eval-set.md) | draft | laptop + cluster | curated phrase set + grounding accuracy |

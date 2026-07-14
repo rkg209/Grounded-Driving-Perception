@@ -1,11 +1,13 @@
 # Real BDD100K. Requires the dataset to be downloaded (spec 01) — it is NOT in the repo.
-# Cluster use:  uv run gdp <cmd> -c configs/default.yaml -c configs/bdd100k.yaml
+# Cluster use:  uv run gdp data prepare -c configs/default.yaml -c configs/bdd100k.yaml --dataset bdd100k --split both
 #
-# Nothing here works until spec 01 is implemented; the paths are the contract it must satisfy.
+# See docs/bdd100k-download.md for registration steps and the expected directory tree.
 
 dataset:
   name: bdd100k
   root: data/bdd100k/images/100k
   annotations: data/bdd100k/labels/det_20/det_val_coco.json
+  raw_labels: data/bdd100k/labels/det_20
+  min_boxes_for_eval: 100
 
 device: auto

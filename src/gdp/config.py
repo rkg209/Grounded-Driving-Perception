@@ -51,12 +51,21 @@ class DatasetConfig:
     root: str = "tests/fixtures/mini_bdd"
     annotations: str = "tests/fixtures/mini_bdd/annotations.json"
     classes: list[str] = field(default_factory=lambda: list(BDD100K_CLASSES))
+    # Raw BDD `det_20` label directory (holds det_train.json / det_val.json), input to spec 01's
+    # converter. Not used by mini_bdd, which reads its raw fixtures straight from tests/fixtures/.
+    raw_labels: str = "data/bdd100k/labels/det_20"
+    # A class below this box count in a split is flagged in stats.json's rare_classes, not
+    # silently dropped to flatter later mAP (H7).
+    min_boxes_for_eval: int = 100
 
     def root_path(self) -> Path:
         return resolve(self.root)
 
     def annotations_path(self) -> Path:
         return resolve(self.annotations)
+
+    def raw_labels_path(self) -> Path:
+        return resolve(self.raw_labels)
 
 
 @dataclass
@@ -101,6 +110,8 @@ class Config:
             raise TypeError(f"seed must be an int, got {type(self.seed).__name__}")
         if not self.dataset.classes:
             raise ValueError("dataset.classes must not be empty")
+        if self.dataset.min_boxes_for_eval <= 0:
+            raise ValueError("dataset.min_boxes_for_eval must be positive")
         for name, value in (
             ("detector.box_threshold", self.detector.box_threshold),
             ("detector.text_threshold", self.detector.text_threshold),
