@@ -37,6 +37,7 @@ class Box:
 class Sample:
     """One image plus its ground-truth boxes."""
 
+    image_id: int
     image_path: Path
     width: int
     height: int
@@ -93,6 +94,7 @@ def load_dataset(annotations: str | Path, images_root: str | Path) -> Dataset:
             raise FileNotFoundError(f"image referenced by annotations is missing: {path}")
         samples.append(
             Sample(
+                image_id=img["id"],
                 image_path=path,
                 width=img["width"],
                 height=img["height"],

@@ -15,8 +15,6 @@ runner = CliRunner()
 
 # command → the spec that will implement it
 PENDING = {
-    "detect": "02-zeroshot-baseline",
-    "evaluate": "02-zeroshot-baseline",
     "deploy": "05-deploy-onnx-edge",
     "vqa": "07-finetune-vlm",
     "demo": "09-integrated-demo",
@@ -26,7 +24,7 @@ PENDING = {
 def test_help_lists_the_whole_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ["info", "data", *PENDING]:
+    for command in ["info", "data", "detect", "evaluate", *PENDING]:
         assert command in result.stdout
 
 
@@ -93,3 +91,212 @@ def test_data_prepare_mini_bdd_rejects_non_val_split(clean_01_data_runs):
 def test_data_prepare_rejects_unknown_dataset(clean_01_data_runs):
     result = runner.invoke(app, ["data", "prepare", "--dataset", "nope"])
     assert result.exit_code == 1
+
+
+@pytest.fixture
+def clean_02_zeroshot_runs():
+    """`gdp detect` writes a fresh timestamped dir per invocation; clean up after."""
+    runs_dir = resolve("runs/02-zeroshot")
+    before = set(runs_dir.iterdir()) if runs_dir.is_dir() else set()
+    yield
+    after = set(runs_dir.iterdir()) if runs_dir.is_dir() else set()
+    for new_dir in after - before:
+        shutil.rmtree(new_dir)
+
+
+def test_detect_mini_bdd_writes_well_formed_predictions(clean_02_zeroshot_runs):
+    """Fixture smoke path (H7: no metric is ever reported on mini_bdd) — proves the plumbing
+    (config → detector → span→class mapping → predictions.json) end-to-end."""
+    result = runner.invoke(app, ["detect", "-c", "configs/default.yaml", "--dataset", "mini_bdd"])
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/02-zeroshot")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    predictions_path = latest / "predictions.json"
+    assert predictions_path.is_file()
+
+    predictions = json.loads(predictions_path.read_text())
+    assert isinstance(predictions, list)
+    for pred in predictions:
+        assert {"image_id", "category_id", "bbox", "score"} <= pred.keys()
+        assert len(pred["bbox"]) == 4
+        assert 0 <= pred["category_id"] < 10
+        assert 0.0 <= pred["score"] <= 1.0
+
+
+def test_detect_mini_bdd_rejects_non_val_split(clean_02_zeroshot_runs):
+    result = runner.invoke(
+        app, ["detect", "-c", "configs/default.yaml", "--dataset", "mini_bdd", "--split", "train"]
+    )
+    assert result.exit_code == 1
+    assert "'val' split" in (result.stdout + str(result.stderr or ""))
+
+
+def test_evaluate_mini_bdd_writes_metrics_with_full_provenance(clean_02_zeroshot_runs):
+    """Fixture smoke path (H7): `metrics.json` must exist, be stamped `is_synthetic: true`, and
+    carry every provenance field CLAUDE.md §8 requires — never trust a metric without them."""
+    detect_result = runner.invoke(
+        app, ["detect", "-c", "configs/default.yaml", "--dataset", "mini_bdd"]
+    )
+    assert detect_result.exit_code == 0, detect_result.stdout
+
+    eval_result = runner.invoke(
+        app, ["evaluate", "-c", "configs/default.yaml", "--dataset", "mini_bdd"]
+    )
+    assert eval_result.exit_code == 0, eval_result.stdout
+
+    runs_dir = resolve("runs/02-zeroshot")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    metrics_path = latest / "metrics.json"
+    assert metrics_path.is_file()
+
+    metrics = json.loads(metrics_path.read_text())
+    assert metrics["is_synthetic"] is True
+    assert metrics["dataset"] == "mini_bdd"
+    assert metrics["split"] == "val"
+    assert metrics["num_images"] == 4
+    assert metrics["model_id"] == "IDEA-Research/grounding-dino-tiny"
+    assert set(metrics["per_class_ap"]) == {
+        "pedestrian",
+        "rider",
+        "car",
+        "truck",
+        "bus",
+        "train",
+        "motorcycle",
+        "bicycle",
+        "traffic light",
+        "traffic sign",
+    }
+    assert metrics["chosen_on"] == "config_default"
+    assert 0.0 <= metrics["box_threshold"] <= 1.0
+    assert "git_sha" in metrics and "created" in metrics
+    assert metrics["config"]["detector"]["model_id"] == "IDEA-Research/grounding-dino-tiny"
+
+
+def test_evaluate_fails_loudly_with_no_predictions(monkeypatch, clean_02_zeroshot_runs):
+    monkeypatch.setattr("gdp.cli._latest_predictions_path", lambda: None)
+    result = runner.invoke(app, ["evaluate", "-c", "configs/default.yaml", "--dataset", "mini_bdd"])
+    assert result.exit_code == 1
+    assert "predictions not found" in (result.stdout + str(result.stderr or ""))
+
+
+def test_evaluate_sweep_on_val_is_rejected_as_leakage(clean_02_zeroshot_runs):
+    """The leakage guard (H8, spec 02 task 6): sweeping the threshold on val would let the
+    baseline tune toward the very split it's supposed to be measured against. mini_bdd forces
+    split=val, so `--sweep` on it must always be rejected before any inference runs."""
+    result = runner.invoke(
+        app, ["evaluate", "-c", "configs/default.yaml", "--dataset", "mini_bdd", "--sweep"]
+    )
+    assert result.exit_code == 1
+    output = result.stdout + str(result.stderr or "")
+    assert "leakage" in output or "'val' split" in output
+
+
+def test_evaluate_sweep_and_box_threshold_are_mutually_exclusive(clean_02_zeroshot_runs):
+    result = runner.invoke(
+        app,
+        [
+            "evaluate",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "bdd100k",
+            "--split",
+            "train",
+            "--sweep",
+            "--box-threshold",
+            "0.3",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "mutually exclusive" in (result.stdout + str(result.stderr or ""))
+
+
+def test_evaluate_box_threshold_override_is_labelled_cli_override(clean_02_zeroshot_runs):
+    """`chosen_on` must honestly reflect where the threshold actually came from — a manual
+    `--box-threshold` is neither the config default nor a train-slice sweep."""
+    detect_result = runner.invoke(
+        app, ["detect", "-c", "configs/default.yaml", "--dataset", "mini_bdd"]
+    )
+    assert detect_result.exit_code == 0, detect_result.stdout
+
+    eval_result = runner.invoke(
+        app,
+        [
+            "evaluate",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--box-threshold",
+            "0.1",
+        ],
+    )
+    assert eval_result.exit_code == 0, eval_result.stdout
+
+    runs_dir = resolve("runs/02-zeroshot")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    metrics = json.loads((latest / "metrics.json").read_text())
+    assert metrics["chosen_on"] == "cli_override"
+    assert metrics["box_threshold"] == 0.1
+
+
+def test_evaluate_chosen_on_train_replays_a_sweep_winner_honestly(clean_02_zeroshot_runs):
+    """`--chosen-on train` is how the SLURM job (task 7) tells the val evaluation run that its
+    `--box-threshold` value was genuinely picked by an earlier train-split sweep, not invented
+    on the spot — `metrics.json` must record that provenance, not fall back to `cli_override`."""
+    detect_result = runner.invoke(
+        app, ["detect", "-c", "configs/default.yaml", "--dataset", "mini_bdd"]
+    )
+    assert detect_result.exit_code == 0, detect_result.stdout
+
+    eval_result = runner.invoke(
+        app,
+        [
+            "evaluate",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--box-threshold",
+            "0.2",
+            "--chosen-on",
+            "train",
+        ],
+    )
+    assert eval_result.exit_code == 0, eval_result.stdout
+
+    runs_dir = resolve("runs/02-zeroshot")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    metrics = json.loads((latest / "metrics.json").read_text())
+    assert metrics["chosen_on"] == "train"
+    assert metrics["box_threshold"] == 0.2
+
+
+def test_evaluate_chosen_on_rejects_values_other_than_train(clean_02_zeroshot_runs):
+    result = runner.invoke(
+        app,
+        [
+            "evaluate",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--box-threshold",
+            "0.2",
+            "--chosen-on",
+            "val",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "only accepts 'train'" in (result.stdout + str(result.stderr or ""))
+
+
+def test_evaluate_chosen_on_requires_box_threshold(clean_02_zeroshot_runs):
+    result = runner.invoke(
+        app,
+        ["evaluate", "-c", "configs/default.yaml", "--dataset", "mini_bdd", "--chosen-on", "train"],
+    )
+    assert result.exit_code == 1
+    assert "requires --box-threshold" in (result.stdout + str(result.stderr or ""))

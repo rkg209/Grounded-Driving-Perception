@@ -78,6 +78,9 @@ class DetectorConfig:
     # Grounding-DINO's custom MS-deformable-attention kernels are not ONNX-exportable.
     # Spec 05 must set this True before export; training leaves it False for speed.
     disable_custom_kernels: bool = False
+    # Candidate thresholds `gdp evaluate --sweep` picks from — swept on a held-out slice of
+    # *train* only, never val (leakage would poison the H8 baseline). specs/02-zeroshot-baseline §5.
+    sweep_candidates: list[float] = field(default_factory=lambda: [0.15, 0.2, 0.25, 0.3, 0.35, 0.4])
 
     def prompt(self, classes: list[str]) -> str:
         """Grounding-DINO expects classes separated by periods: 'car. pedestrian. bus.'"""
@@ -118,6 +121,13 @@ class Config:
         ):
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {value}")
+        if not self.detector.sweep_candidates:
+            raise ValueError("detector.sweep_candidates must not be empty")
+        for value in self.detector.sweep_candidates:
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(
+                    f"detector.sweep_candidates entries must be in [0, 1], got {value}"
+                )
         if self.vlm.max_new_tokens <= 0:
             raise ValueError("vlm.max_new_tokens must be positive")
         return self

@@ -1090,3 +1090,612 @@ BDD100K registration is still the long-lead item (docs/bdd100k-download.md §1) 
 
 **Next:** spec 02 (`02-zeroshot-baseline`) — currently `draft`; needs approval before
 implementation, per the same process this session followed for spec 01.
+
+## [SEQ-0015] Spec 02 task 1: pycocotools dependency + Grounding-DINO detector skeleton
+
+**Date:** 2026-07-16 · **Spec:** 02-zeroshot-baseline · **Status:** done
+
+### What
+Approved spec 02 (flipped `**Status:**` in `specs/02-zeroshot-baseline.md` and its row in
+`specs/README.md` from `draft` to `approved`, after confirming with the user, since `approved`
+means human-reviewed per CLAUDE.md §3 and I cannot self-certify that). Wrote the spec's 7-task
+`## Tasks` checklist into the spec file (cheap sanity checks first: span→class round-trip before
+any pipeline wiring, per the `tasks` skill's ordering rule). Then implemented task 1: added
+`pycocotools>=2.0.7` to `pyproject.toml`; created `src/gdp/detect/__init__.py` (re-exports
+`GroundingDinoDetector`, `Detection`), `src/gdp/detect/detector.py` (`GroundingDinoDetector` —
+loads `AutoProcessor` + `GroundingDinoForObjectDetection` for `config.model_id`, resolves the
+device via `gdp.seed.select_device`, moves the model to it and calls `.eval()`, passes
+`disable_custom_kernels` through to the model config), and `src/gdp/detect/predictions.py`
+(`Detection` frozen dataclass — image_id/class_id/score/xyxy with `__post_init__` guards for
+degenerate boxes and out-of-range scores — plus `to_coco()` for the pycocotools xywh convention
+and a `write_predictions` helper). No inference or span→class logic yet — that's task 2.
+
+### Why
+H8 makes spec 02's zero-shot mAP the baseline every later Stage-1 claim (spec 03's fine-tuned
+delta) is measured against, so it has to exist and be approved before any fine-tuning touches the
+model. This task is the first rung: nothing downstream (span→class mapping, `gdp detect`, COCO
+mAP) can be written against a detector class that doesn't exist yet, and getting the model/device/
+config wiring right first, in isolation, means task 2's much riskier code (the token-span→class
+assignment the `detection-eval` skill calls out as the main way this spec goes silently wrong)
+isn't also debugging a model-loading problem at the same time.
+
+### How
+Reused `gdp.config.DetectorConfig` (model_id, box_threshold, text_threshold,
+disable_custom_kernels) and `gdp.seed.select_device` rather than inventing a second device-
+resolution path. Considered putting a `detect()` method stub with `NotImplementedError` on
+`GroundingDinoDetector` to signal "more to come"; rejected it — an empty class that only loads
+weights is already an honest, testable unit, and a stub method the next task immediately deletes
+adds nothing. Verified `AutoProcessor`/`GroundingDinoForObjectDetection` are the correct HF auto-
+classes and that `disable_custom_kernels` is a real `GroundingDinoConfig` field (not a made-up
+kwarg) by importing and inspecting them directly before writing the loader, rather than trusting
+the plan's description of the HF API from memory.
+
+### Issues & resolutions
+None. `uv sync` resolved `pycocotools==2.0.11` cleanly (no build issues, despite it being a
+C-extension package); the HF Hub download of `grounding-dino-tiny`'s weights succeeded on the
+first try (a `HF_TOKEN` warning printed to stderr but did not affect the load).
+
+### Verification
+```
+uv sync                                                → + pycocotools==2.0.11, gdp reinstalled
+uv run python -c "import gdp.detect; ..."              → ok <class 'gdp.detect.detector.GroundingDinoDetector'> <class 'gdp.detect.predictions.Detection'>
+uv run gdp detect --help                                → prints the (still-pending, spec 02) detect command's help text, exit 0
+uv run python -c "GroundingDinoDetector(DetectorConfig(), device='cpu'); print(d.device, type(d.model).__name__, type(d.processor).__name__)"
+                                                         → cpu GroundingDinoForObjectDetection GroundingDinoProcessor
+uv run ruff check src tests                             → All checks passed!
+uv run pytest -q                                        → 69 passed (unchanged — task 1 adds no new tests; the round-trip
+                                                             test for span→class mapping is task 2's, per the spec's task
+                                                             breakdown, since that's where the logic it tests first exists)
+```
+
+**Next:** spec 02 task 2 — span→class mapping (`PromptSpans.from_classes` with the processor's own
+tokenizer, a runtime round-trip assertion, `positive_map` masked-mean aggregation over query
+logits) and box-format conversion (normalized cxcywh → absolute xyxy, with `[0, 1]` range guards).
+This is the task the `detection-eval` skill's "token-span trap" warning is about — it gets its own
+test (`tests/test_detect.py`) asserting the "traffic light" → class 8 case by name.
+
+## [SEQ-0016] Spec 02 task 2: span→class assignment + box-format conversion
+
+**Date:** 2026-07-16 · **Spec:** 02-zeroshot-baseline · **Status:** done
+
+### What
+Extended `src/gdp/detect/detector.py` with three module-level functions and one constructor
+change. `assert_span_round_trip(spans, classes, tokenizer)` decodes every class's token span and
+raises `RuntimeError` on any mismatch. `assign_classes(logits, positive_map)` takes Grounding-
+DINO's per-query `[num_queries, text_len]` logits, sigmoids them, and matrix-multiplies against
+`PromptSpans.positive_map()`'s L1-normalized `[num_classes, text_len]` rows — since each row is
+`1/span_len` over its class's tokens and 0 elsewhere, `scores @ positive_map.T` is exactly the
+masked mean per class per query; `argmax` over the class axis gives `(class_ids, scores)`.
+`convert_boxes_cxcywh_norm_to_xyxy_abs(boxes, width, height)` converts Grounding-DINO's
+normalized-cxcywh `pred_boxes` to absolute xyxy, guarding that every input coordinate is in
+`[0, 1]` before converting. `GroundingDinoDetector.__init__` now takes a `classes` argument,
+builds `self.prompt` (via `config.prompt()`) and `self.prompt_spans` (via
+`PromptSpans.from_classes(classes, tokenizer=self.processor.tokenizer)` — the processor's own
+tokenizer, not `gdp.data.prompt.get_tokenizer()`'s default bert instance), and calls
+`assert_span_round_trip` on construction. Added `tests/test_detect.py` (8 tests): the round-trip
+guard's pass and raise cases, `assign_classes` on synthetic logits (including the named
+acceptance-3 case — a box whose logits peak on "traffic light"'s tokens is assigned class index 8,
+not 0), box conversion's arithmetic and its out-of-range rejection, and two tests against a real
+`GroundingDinoDetector("cpu")` instance confirming its `prompt_spans` round-trip against its own
+processor's tokenizer and that `self.prompt` matches `DetectorConfig().prompt()`'s format.
+
+### Why
+This is the task the `detection-eval` skill's "token-span trap" warning is entirely about, and the
+plan (`.claude/plans/02-zeroshot-baseline.md` design decision 1) called it "the whole risk" in
+spec 02: Grounding-DINO has no class head, so a box's class comes from which prompt tokens its
+logits score highest on. Decoding those logits to a phrase string and matching by substring (HF's
+`post_process_grounded_object_detection` path) is fragile — "traffic light" and "traffic sign"
+share a prefix, exactly the case spec 01's `PromptSpans` was built to defend against
+(`specs/01-data-bdd100k.md` §3). Doing the masked-mean aggregation instead, and reusing
+`positive_map()` rather than re-deriving spans from decoded text, means this task inherits spec
+01's already-tested guarantees instead of re-opening the same failure mode. The round-trip
+assertion at construction time exists because the processor's tokenizer is not guaranteed to
+tokenize identically to the bare `bert-base-uncased` instance `PromptSpans` defaults to (padding,
+special-token handling, or a future model swap could all shift offsets); catching a divergence at
+startup, loudly, beats discovering it as an unexplained near-zero mAP after a full cluster run.
+
+### How
+Verified the real shapes before writing the mapping, rather than assuming them from the plan:
+loaded `grounding-dino-tiny` and ran one forward pass on a fixture image, which confirmed
+`logits` is `[1, 900, 256]` (900 queries, a *fixed* 256-token text dimension regardless of the
+actual ~24-token prompt) and `pred_boxes` is `[1, 900, 4]` — matching `PromptSpans.positive_map()`'s
+`max_text_len=256` default exactly, so no shape-mismatch handling is needed beyond the
+defensive `min()` already in `assign_classes`. Also confirmed the processor's tokenizer is a
+`BertTokenizer` loaded from `IDEA-Research/grounding-dino-tiny` (i.e. bert-base-uncased under the
+hood) rather than assuming it. Considered doing the round-trip guard as a method on
+`GroundingDinoDetector` directly; extracted it as a standalone `assert_span_round_trip` function
+instead, so it — and its failure path — could be unit-tested without loading the full model, which
+matters because the model-backed tests already need a `pytest.skip` fallback for offline runs and
+a pure-function guard test shouldn't share that dependency. Did **not** implement batched
+inference or `Detection` assembly here even though the plan's design decision 1 describes the full
+per-query algorithm through box thresholding — that orchestration needs the CLI's image-loading
+and batching plumbing, which is task 3's scope; task 2 stays scoped to the two pure, independently
+testable pieces (span→class assignment, box conversion) per the spec's task breakdown.
+
+### Issues & resolutions
+Two, both self-caught by running the new tests immediately rather than trusting the arithmetic by
+eye. First: `test_assign_classes_traffic_light_not_class_zero` initially failed ruff's line-length
+check on the `assign_classes` docstring; the formatter hook re-wrapped it and `ruff check` passed
+on the next run, so no manual fix was needed — noted here only because CLAUDE.md's "mistakes are
+the most valuable part" applies even to trivial ones. Second, a real bug in my own test: I hand-
+computed the expected xyxy box for `cx=0.5, cy=0.5, w=0.2, h=0.4, width=100, height=200` as
+`[40, 90, 60, 170]`, which is wrong — `h/2=0.2`, so `y0=(0.5-0.2)*200=60` and
+`y1=(0.5+0.2)*200=140`, not 90/170 (I'd silently used `h/2=0.3`). `test_convert_boxes_...` caught
+this immediately (`AssertionError: Mismatched elements: 2/4`); the implementation was correct, the
+test's expected values were wrong, and I fixed the test rather than the code — confirmed by
+re-deriving the arithmetic by hand a second time before editing.
+
+### Verification
+```
+uv run pytest tests/test_detect.py -q   → 1 failed first run (test_convert_boxes_cxcywh_norm_to_xyxy_abs,
+                                             wrong hand-computed expected values, see above)
+                                          → 8 passed after fixing the test's expected values
+uv run ruff check src tests             → All checks passed!
+uv run pytest                           → 77 passed in 7.93s (up from 69; +8 new tests, 0 regressions)
+```
+
+**Next:** spec 02 task 3 — wire `GroundingDinoDetector` + `assign_classes` +
+`convert_boxes_cxcywh_norm_to_xyxy_abs` into the `gdp detect` CLI command end-to-end on the
+`mini_bdd` fixture: batched inference, box-threshold filtering, `Detection` assembly, and a
+`predictions.json` writer. Also removes `detect` from `tests/test_cli.py`'s `PENDING` map — flagged
+here in advance per the plan's note that this touches a committed test file's shared fixture.
+
+## [SEQ-0017] Spec 02 task 3: `gdp detect` end-to-end on the mini_bdd fixture
+
+**Date:** 2026-07-16 · **Spec:** 02-zeroshot-baseline · **Status:** done
+
+### What
+Added `GroundingDinoDetector.detect_images(samples, *, box_threshold, batch_size=8)` to
+`src/gdp/detect/detector.py`: chunks `Sample`s into `batch_size`-sized groups, runs one processor
+call + one model forward pass per chunk (images batched, the fixed class prompt broadcast to
+every image in the chunk), then per-image calls `assign_classes` and
+`convert_boxes_cxcywh_norm_to_xyxy_abs` and keeps only detections scoring `>= box_threshold` as
+`Detection`s. Added `image_id: int` to `gdp.data.core.Sample` (and `load_dataset`'s construction
+of it) — needed so predictions carry the same image ids as the ground-truth COCO json, which
+`gdp evaluate` (task 5) will need to match them up. Wired the CLI: `gdp detect` now takes
+`--dataset`, `--split`, `--limit`, `--box-threshold`; a new `_detect_dataset_paths(cfg, dataset,
+split)` helper resolves the mini_bdd fixture's fixed annotations/root, or — for real bdd100k —
+swaps `val` for the requested split in the configured `det_val_coco.json` filename, matching
+`data prepare`'s own `det_<split>_coco.json` output convention. `detect` loads the dataset,
+builds the detector, runs `detect_images`, and writes `runs/02-zeroshot/<timestamp>/
+predictions.json` via the new `gdp.detect.predictions.write_predictions`. Removed `detect` from
+`tests/test_cli.py`'s `PENDING` map (added an explicit `"detect"` check to
+`test_help_lists_the_whole_command_surface` in its place) and added two new tests: a fixture
+smoke test asserting `predictions.json` is well-formed COCO-detection-result JSON, and a
+non-val-split rejection test mirroring `data prepare`'s existing one.
+
+### Why
+This is spec 02's first live, end-to-end proof that the plumbing works — H8's baseline mAP is
+worthless until `gdp detect` reliably turns an image + the fixed class prompt into scored,
+correctly-labelled boxes on disk. Batching (rather than one image at a time) matters for the real
+cluster run (task 7): a python-level loop over thousands of individual forward passes would be
+needlessly slow and is also just not how the design decisions section of the plan described the
+approach. The `Sample.image_id` addition exists because `gdp evaluate`'s pycocotools comparison
+(task 4/5) is meaningless if predictions and ground truth don't share image ids — better to add
+the field now, while task 3 is the first code that needs it, than to patch it in later once
+task 5's evaluate command discovers the mismatch.
+
+### How
+Verified Grounding-DINO's processor actually supports batched multi-image calls with a broadcast
+text prompt before writing `detect_images` around that assumption — ran a real 2-image batch
+through `AutoProcessor` + `GroundingDinoForObjectDetection` first and confirmed `logits`/
+`pred_boxes` both carry a leading batch dimension (`[2, 900, 256]` / `[2, 900, 4]`) that lines up
+positionally with the input image list, rather than trusting the plan's "batched inference" phrase
+to mean the processor supports it in the way I assumed. For the real-bdd100k annotations path
+(`_detect_dataset_paths`), considered adding a dedicated `dataset.annotations_train` /
+`annotations_val` pair of config fields instead of string-swapping the filename; rejected it as a
+second, parallel way to express what `data prepare`'s own `det_<split>_coco.json` naming
+convention already encodes — string-swapping one field mirrors an existing convention rather than
+inventing a new config surface, and real-bdd100k detect calls are cluster-only and untestable here
+regardless (the fixture is the only path this task can actually verify). Considered making
+`box_threshold` filtering happen inside `assign_classes` itself; kept it in `detect_images`
+instead, so `assign_classes` stays a pure per-query classification function task 2 already tests
+without needing a threshold argument, and thresholding — which is about *keeping* detections, not
+*classifying* them — lives with the code that assembles `Detection`s.
+
+Hit the same import-stripping trap flagged in SEQ-0012 twice in this task: adding an import in one
+`Edit` call and its first use in a later call gave the formatter-on-save hook a window to strip
+the "unused" import in between, producing `F821 Undefined name` on the next `ruff check` (in both
+`detector.py`, for `Image`/`Detection`, and `cli.py`, for `load_dataset`/`GroundingDinoDetector`/
+`write_predictions`, each twice). Both times the fix was the same: re-add the import in an edit
+where the usage is already present in the file, so ruff's autofix has nothing to strip. Noting it
+again here because two run-ins in one task means "add the import and its first use together" is a
+mechanical habit worth automating rather than a one-off lesson.
+
+### Issues & resolutions
+The import-stripping issue above (self-caught via `ruff check` immediately after each edit, fixed
+by re-ordering the edits, not by working around ruff). Otherwise clean: `gdp detect -c
+configs/default.yaml --dataset mini_bdd` produced a well-formed 4-detection `predictions.json` on
+the first successful run once imports were sorted, and the CLI test suite passed without further
+changes.
+
+### Verification
+```
+uv run ruff check src/gdp/detect/detector.py   → All checks passed! (after re-adding Image/Detection imports)
+uv run ruff check src/gdp/cli.py               → All checks passed! (after re-adding load_dataset/GroundingDinoDetector/write_predictions imports)
+uv run gdp detect -c configs/default.yaml --dataset mini_bdd
+                                                → mini_bdd/val: 4 images, 4 detections (box_threshold=0.25)
+                                                  -> runs/02-zeroshot/20260716-113052/predictions.json
+cat runs/02-zeroshot/20260716-113052/predictions.json
+                                                → 4 well-formed COCO-detection-result entries (image_id,
+                                                  category_id, bbox [4 floats], score), manually inspected
+uv run ruff check src tests                    → All checks passed!
+uv run pytest                                  → 78 passed in 20.43s (up from 77: -1 for "detect" leaving
+                                                    PENDING's parametrized test, +2 new detect tests)
+bash scripts/smoke.sh                          → SMOKE OK (device: mps)
+git status --short                             → clean except the intended source/test/spec/progress
+                                                  diffs; the manual run's runs/02-zeroshot/<ts>/ directory
+                                                  was deleted by hand (rm of the specific timestamped path,
+                                                  not a recursive delete of runs/ — the guard-bash hook
+                                                  correctly blocked the first, broader rm attempt)
+```
+
+**Next:** spec 02 task 4 — the COCO mAP wrapper (`src/gdp/eval/coco_map.py`, a `pycocotools`
+wrapper for mAP/mAP@50/per-class AP) and the operating-point precision/recall module
+(`src/gdp/eval/operating_point.py`, a greedy IoU≥0.5 matcher plus a `sweep_threshold` helper),
+both unit-testable in isolation from the CLI on hand-built synthetic boxes.
+
+## [SEQ-0018] Spec 02 task 4: COCO mAP wrapper + operating-point precision/recall — and a real pycocotools annotation-id-0 bug found and fixed
+
+**Date:** 2026-07-16 · **Spec:** 02-zeroshot-baseline · **Status:** done
+
+### What
+Added `src/gdp/eval/coco_map.py` (`evaluate_coco_map(gt_path, predictions) -> CocoMapResult`:
+wraps `pycocotools.COCO`/`COCOeval` for mAP@[0.50:0.95], mAP@50, and per-class AP; handles an
+empty predictions list without crashing, since `loadRes([])` raises) and
+`src/gdp/eval/operating_point.py` (`box_iou`, `match_operating_point` — a greedy per-class
+IoU≥0.5 matcher producing per-class + overall TP/FP/FN/precision/recall, and `sweep_threshold` —
+picks the F1-maximizing threshold from a candidate list). Added `src/gdp/eval/__init__.py`
+re-exporting both modules' public names. Added `tests/test_eval.py` (15 tests): `box_iou`
+arithmetic, `match_operating_point`'s TP/FP/FN correctness on hand-built boxes (perfect match,
+extra prediction, missed GT, low-IoU near-miss, greedy score-ordering, cross-image and
+cross-class non-matches), `sweep_threshold` picking the right candidate by F1 and rejecting an
+empty candidate list, and three `evaluate_coco_map` tests (perfect predictions ≈1.0 AP, empty
+predictions → all-zero not a crash, accepting a predictions file path). While writing the
+perfect-prediction `evaluate_coco_map` test, found and fixed a real bug: added
+`_load_coco_gt_with_safe_ids` to `coco_map.py`, which +1-shifts every ground-truth annotation id
+before building the `COCO` index, guarding against `pycocotools`' use of annotation id `0` as an
+internal "unmatched" sentinel (see Issues & resolutions).
+
+### Why
+H9 requires mAP come from `pycocotools`, never a hand-rolled AP interpolation — this task exists
+to be that wrapper and nothing more. The operating-point matcher exists because COCOeval's own
+precision/recall is threshold-swept and abstract; spec 02's acceptance criteria (and the plan's
+design decision 4) call for the specific ADAS-readable sentence "at our operating threshold we
+catch X% of pedestrians," which needs a *fixed*-threshold greedy matcher, not COCOeval's sweep.
+Both modules had to be built and tested independently of the CLI (task 5's job) so that their
+correctness — especially the matcher's TP/FP/FN logic, which is entirely hand-written and has no
+upstream implementation to defer to the way `coco_map.py` defers to `pycocotools` — is verified
+on inputs simple enough to check by hand, before it is ever asked to produce spec 02's real,
+reported baseline number.
+
+### Issues & resolutions
+Found a genuine correctness bug, not a test-writing mistake this time. My first `evaluate_coco_map`
+test built a 2-image, 2-category synthetic ground truth with perfectly-matching predictions and
+expected mAP≈1.0; it returned exactly **0.5**. Debugging (`COCOeval.evaluateImg` called directly,
+then `COCOeval.accumulate`'s source) showed the "car" category's single detection had
+`dtMatches=[0.]` (looks unmatched) while `gtMatches=[1.]` (correctly recorded gtId 0 as matched to
+dtId 1) — an inconsistent pair that only makes sense if the ground-truth annotation's `id` (which
+happened to be `0`, the first annotation in the fixture) collided with `dtMatches`' fill-value-0
+"no match" sentinel. Confirmed the mechanism in pycocotools' own `accumulate()`:
+`tps = np.logical_and(dtm, np.logical_not(dtIg))` treats `dtm` as boolean, so a match recorded as
+literal id `0` reads as `False` — the box is counted as a false positive instead of a true
+positive. Confirmed this is not a hypothetical: `gdp.data.bdd100k.convert_bdd_to_coco` (spec 01)
+assigns annotation ids starting at 0 (`ann_id = 0`), and `tests/fixtures/mini_bdd/annotations.json`
+already has an annotation with `id: 0` — so every real converted split, and the fixture itself,
+carries this landmine in its very first ground-truth box. Considered fixing it at the source
+(bump spec 01's `ann_id` to start at 1); rejected changing already-`done`, already-tested spec 01
+code from inside a spec 02 task — 0-based ids are a perfectly valid choice on their own terms, and
+the actual defect is pycocotools' sentinel convention, which only matters at the evaluation
+boundary. Fixed it there instead: `_load_coco_gt_with_safe_ids` reads the raw GT json and shifts
+every annotation id by +1 before constructing the `COCO` index (confirmed `pycocotools.loadRes`
+already reassigns detection ids as `1, 2, ...` internally, so only the ground-truth side needed
+the fix). Kept the original id-0 fixture in `tests/test_eval.py` rather than changing it to avoid
+the bug, specifically so it stands as the regression test — documented as such in the test's
+docstring.
+
+### Verification
+```
+uv run ruff check src tests   → All checks passed!
+uv run pytest tests/test_eval.py -q
+                               → first run: 2 failed (mAP=0.5 not ~1.0, before the id-0 fix)
+                               → 15 passed after adding _load_coco_gt_with_safe_ids
+uv run pytest                 → 93 passed in 20.31s (up from 78; +15 new tests, 0 regressions)
+bash scripts/smoke.sh         → SMOKE OK (device: mps)
+git status --short            → clean except the intended source/test/spec/progress diffs
+```
+
+**Next:** spec 02 task 5 — `src/gdp/eval/metrics_io.py` (assembling `metrics.json` with full
+provenance: mAP, per-class AP, P/R, threshold + `"chosen_on"`, config echo, model_id, split, image
+count, git SHA, UTC timestamp, `is_synthetic`) and wiring `gdp evaluate` in the CLI to consume
+`predictions.json` + ground truth and produce it. This is the task that makes spec 02's baseline
+number actually exist as a file, per CLAUDE.md §8 ("a metric without provenance is a rumour").
+
+## [SEQ-0019] Spec 02 task 5: `gdp evaluate` + full-provenance `metrics.json`
+
+**Date:** 2026-07-16 · **Spec:** 02-zeroshot-baseline · **Status:** done
+
+### What
+Added `src/gdp/eval/metrics_io.py`: `build_metrics(...)` assembles the full provenance record
+(dataset, split, num_images, `is_synthetic`, `model_id`, `map`/`map50`/`per_class_ap`,
+`box_threshold` + `chosen_on`, overall + per-class precision/recall with tp/fp/fn, a complete
+`dataclasses.asdict(cfg)` config echo, `git_sha()`, and a UTC `created` timestamp) and
+`write_metrics(...)` writes it to `<out_dir>/metrics.json`. Lifted `_git_sha()` out of
+`src/gdp/data/stats.py` into a public `gdp.paths.git_sha()` (per the plan's explicit note to do
+this) — `stats.py` now imports and calls the shared helper instead of owning a private copy.
+Wired `gdp evaluate` in `src/gdp/cli.py`: takes `--dataset`, `--split`, `--predictions` (defaults
+to the most recently modified `runs/02-zeroshot/<ts>/predictions.json`, found by a new
+`_latest_predictions_path()` helper), and `--box-threshold`; loads ground truth via the same
+`_detect_dataset_paths` helper `detect` uses, scores predictions with `evaluate_coco_map`
+(task 4), converts predictions/ground-truth into `PredBox`/`GtBox` and runs
+`match_operating_point` at the operating threshold, maps per-class results from class id to class
+name via `cfg.dataset.classes`, and writes `metrics.json` via `build_metrics`/`write_metrics`.
+Removed `evaluate` from `tests/test_cli.py`'s `PENDING` map (added an explicit `"evaluate"` check
+to the help-surface test) and added two tests: a fixture smoke test running `detect` then
+`evaluate` and asserting every provenance field is present and correctly typed, and a
+`monkeypatch`-based test confirming `gdp evaluate` dies loudly (exit 1, "predictions not found")
+when there's nothing to evaluate rather than crashing with a stack trace.
+
+### Why
+This is the task spec 02 exists for: H8's zero-shot baseline is not a real, defensible number
+until it is a file with its split, threshold, checkpoint id, and git SHA attached — "a number
+without that is a rumour" (CLAUDE.md §8). Lifting `git_sha()` to a shared helper (rather than
+copy-pasting `_git_sha()` into `metrics_io.py`, which would have been the path of least
+resistance) matters because CLAUDE.md's H8 provenance requirement recurs at every future
+`metrics.json` (spec 03's fine-tuned mAP, spec 08's VQA accuracy) — one shared, tested
+implementation is the difference between "provenance is a project convention" and "provenance is
+something I remembered to copy correctly this one time."
+
+### How
+Reused `evaluate_coco_map` and `match_operating_point` exactly as task 4 built them rather than
+inlining any scoring logic into the CLI — `cli.py`'s `evaluate` command is pure glue: load paths,
+call the two eval functions, assemble, write. Considered keying `per_class_pr` in
+`build_metrics` by class id (matching `match_operating_point`'s own return type,
+`dict[int, PrecisionRecall]`) to avoid a conversion step; converted to class-name keys in the CLI
+instead, because `metrics.json` is a human/interviewer-facing artifact (CLAUDE.md's "readable,
+alone, as the full development narrative" standard) and `"pedestrian": {...}` is legible in a way
+`"0": {...}` is not — the same choice `per_class_ap` (from `coco_map.py`) already made. Did not
+add a `--split val` guard against sweeping thresholds here, since `evaluate` doesn't sweep — that
+guard is task 6's, once `sweep_threshold` is wired into the CLI; `evaluate`'s own threshold today
+is just "the config default, possibly overridden," honestly stamped `"chosen_on":
+"config_default"`.
+
+### Issues & resolutions
+The `git_sha()` lift hit the same import-stripping pattern (SEQ-0012, recurring in SEQ-0017 and
+SEQ-0018): editing `stats.py`'s import line and its call-site body in separate `Edit` calls left
+a window where the formatter-on-save hook stripped the "unused" `git_sha` import, and the full
+test suite caught it immediately as `NameError: name 'git_sha' is not defined` in `test_stats.py`
+and `test_cli.py`'s data-prepare test (6 failures). Fixed by re-adding the import in an edit where
+the call-site (`"git_sha": git_sha()`) was already present in the file. `gdp evaluate`'s first
+real run against the fixture (after `gdp detect`) produced `mAP=0.0000` / `P=0.000` / `R=0.000` —
+inspected the resulting `metrics.json` by hand to confirm this is the *plumbing* being correct
+(all provenance fields present and well-typed, `tp=0, fp=4, fn=10` — a legitimate score, not a
+crash or malformed output) rather than a bug: the mini_bdd fixture is synthetic imagery
+Grounding-DINO was never going to detect anything real on, exactly per design decision 6 ("no
+metric computed on it is ever reported").
+
+### Verification
+```
+uv run gdp detect -c configs/default.yaml --dataset mini_bdd
+                                        → mini_bdd/val: 4 images, 4 detections (box_threshold=0.25)
+uv run gdp evaluate -c configs/default.yaml --dataset mini_bdd
+                                        → mini_bdd/val: mAP=0.0000 mAP50=0.0000 P=0.000 R=0.000
+                                          (threshold=0.25) -> runs/02-zeroshot/<ts>/metrics.json
+cat runs/02-zeroshot/<ts>/metrics.json → manually inspected: all provenance fields present
+                                          (dataset, split, num_images=4, is_synthetic=true,
+                                          model_id, map/map50/per_class_ap for all 10 classes,
+                                          box_threshold + chosen_on="config_default", overall +
+                                          per-class precision/recall/tp/fp/fn, full config echo,
+                                          git_sha, created timestamp)
+uv run ruff check src tests            → All checks passed! (after re-adding the stripped git_sha
+                                          import)
+uv run pytest                          → first run: 6 failed (NameError: git_sha not defined,
+                                          the import-stripping issue above)
+                                        → 94 passed in 32.01s after the fix (up from 93: -1 for
+                                          "evaluate" leaving PENDING's parametrized test, +2 new
+                                          evaluate tests)
+bash scripts/smoke.sh                  → SMOKE OK (device: mps)
+git status --short                     → clean except the intended source/test/spec/progress
+                                          diffs; both manual runs' runs/02-zeroshot/<ts>/
+                                          directories deleted by hand (specific paths, not a
+                                          recursive runs/ delete)
+```
+
+**Next:** spec 02 task 6 — the threshold sweep on a held-out slice of *train* (leakage guard,
+H8): plumb `sweep_threshold` into `gdp detect --split train --limit N`, have `gdp evaluate` record
+the winning threshold with `"chosen_on": "train"` instead of today's `"config_default"`, and keep
+the fixture (val-only) falling back to the config default, recorded as such. Then task 7's SLURM
+job is the last piece before the real cluster run that produces the actual H8 baseline number.
+
+## [SEQ-0020] Spec 02 task 6: `gdp evaluate --sweep` + the train-only leakage guard
+
+**Date:** 2026-07-16 · **Spec:** 02-zeroshot-baseline · **Status:** done
+
+### What
+Added `detector.sweep_candidates: list[float]` to `DetectorConfig` (`src/gdp/config.py`,
+default `[0.15, 0.2, 0.25, 0.3, 0.35, 0.4]`), validated non-empty and each entry in `[0, 1]` in
+`Config.validate()`, and echoed explicitly in `configs/default.yaml` per the project's
+no-magic-constants convention. Added a `--sweep` flag to `gdp evaluate`
+(`src/gdp/cli.py`): when set, the threshold comes from `sweep_threshold(pred_boxes, gt_boxes,
+candidates=cfg.detector.sweep_candidates)` (task 4's helper) instead of a fixed value, and
+`metrics.json`'s `chosen_on` is stamped `"train"`. Two guards enforce the leakage rule before any
+inference runs: `--sweep` requires `--split train` (rejects with an explicit "leakage" message
+otherwise — this is what stops the H8 baseline from ever being tuned toward val), and `--sweep`
+is mutually exclusive with `--box-threshold`. Also fixed a smaller honesty gap while touching this
+code: a manual `--box-threshold` override was previously mislabelled `chosen_on: "config_default"`
+in `metrics.json` even though it came from neither the config nor a sweep — `chosen_on` is now
+`"cli_override"` in that case, `"config_default"` only when nothing overrode the config's value,
+and `"train"` only for a real sweep. Added tests: two `Config.validate()` cases
+(`sweep_candidates` empty, an out-of-range entry), and four CLI tests — sweep-on-val rejected as
+leakage, `--sweep`+`--box-threshold` rejected as mutually exclusive, and a positive test that a
+manual `--box-threshold` override actually produces `chosen_on: "cli_override"` in the written
+`metrics.json`.
+
+### Why
+This is the leakage guard H8 explicitly calls for (specs/02-zeroshot-baseline.md §5): the
+operating threshold that becomes part of the reported zero-shot baseline must be chosen without
+ever looking at val, or the "baseline" the spec exists to produce would already be quietly tuned
+toward the split it claims to measure against. Making the guard a hard CLI rejection (not a
+comment or a code-review convention) means the mistake is structurally impossible to make by
+accident once this ships, not just discouraged. The `chosen_on` mislabelling fix is small but sits
+squarely in this task's spirit — `metrics.json`'s whole reason to exist is that every field in it
+is defensible provenance (CLAUDE.md §8); a `chosen_on` value that doesn't actually describe where
+the threshold came from is exactly the kind of "looks like provenance, isn't" gap this spec is
+meant to close.
+
+### How
+Considered plumbing the sweep into `gdp detect --split train --limit N` itself (as the task's own
+checklist entry, copied from the plan, literally says) rather than into `gdp evaluate`; on reading
+the plan's design decision 5 more closely ("`gdp detect --split train --limit N` run *feeds* a
+sweep; the eval command records the winner") the sweep computation itself belongs in evaluate —
+`detect` only needs to produce train-split predictions (which it already can, unchanged, since
+`--split train` was wired in task 3) with enough headroom below the lowest candidate threshold for
+the sweep to have real detections to choose among; `evaluate --sweep` is the piece that actually
+calls `sweep_threshold`. Did not attempt to build a synthetic mini_bdd **train** split fixture to
+exercise the full round-trip offline: mini_bdd's val-only scope is an existing, tested spec-01
+decision (`data_prepare` already rejects `--dataset mini_bdd --split train`), real BDD100K train
+data is a long-lead item not available locally, and the task's own checklist already scoped this
+correctly — "on the fixture (val-only), sweep is skipped and the config default is used." What's
+laptop-testable here is the *mechanism* (the guard rejects sweep+val, `sweep_threshold` itself is
+unit-tested in task 4, `chosen_on` is correctly stamped) rather than a real sweep result, which is
+inherently a cluster-only output once real train data exists — task 7's SLURM job is where that
+chain (`detect --split train` → `evaluate --sweep` → `detect --split val --box-threshold
+<winner>` → `evaluate --split val`) actually runs for real.
+
+### Issues & resolutions
+None. The `sweep_candidates` config addition, its validation, and the CLI wiring all worked on
+first test run — the only back-and-forth was deciding where the sweep call belonged (see How),
+not fixing a bug.
+
+### Verification
+```
+uv run ruff check src tests   → All checks passed!
+uv run pytest tests/test_config.py tests/test_cli.py -q
+                               → 29 passed
+uv run pytest                 → 99 passed in 43.32s (up from 94; +5 new: 2 config validation
+                                 cases, 3 CLI tests for the sweep guard and chosen_on correctness)
+bash scripts/smoke.sh         → SMOKE OK (device: mps)
+git status --short            → clean except the intended source/test/spec/progress/config diffs;
+                                 the CLI tests' own runs/02-zeroshot/<ts>/ fixtures were cleaned
+                                 up by their own teardown fixture, nothing left to delete by hand
+```
+
+**Next:** spec 02 task 7 — the last task before the real cluster run: emit
+`scripts/slurm/zeroshot_eval.slurm` via the `slurm-job` skill, resumable, chaining `gdp detect
+--split train` → `gdp evaluate --split train --sweep` → `gdp detect --split val --box-threshold
+<winner>` → `gdp evaluate --split val` against `configs/default.yaml -c configs/bdd100k.yaml`, and
+writing the real `runs/02-zeroshot/<ts>/metrics.json` — the actual H8 baseline number. Handed to
+the user for `sbatch`, never run in-session (CLAUDE.md §4).
+
+## [SEQ-0021] Spec 02 task 7: `scripts/slurm/zeroshot_eval.slurm` + honest `--chosen-on` provenance — spec 02's laptop work is complete
+
+**Date:** 2026-07-16 · **Spec:** 02-zeroshot-baseline · **Status:** done
+
+### What
+Added `scripts/slurm/zeroshot_eval.slurm`: a resumable job chaining `gdp data prepare --dataset
+bdd100k --split both` → `gdp detect --split train --limit 2000 --box-threshold 0.05` (headroom
+below every sweep candidate) → `gdp evaluate --split train --sweep` (picks the operating
+threshold on train only) → `gdp detect --split val --box-threshold <winner>` → `gdp evaluate
+--split val --box-threshold <winner> --chosen-on train` (the real H8 baseline, honestly stamped as
+train-chosen even though this particular invocation replays the number via `--box-threshold`
+rather than sweeping itself). A `run_step` bash helper caches each step's output path in
+`runs/02-zeroshot/slurm-state/<step>.path` after success and skips already-completed steps on
+resubmission — SLURM pre-emption/walltime kills are normal on a shared cluster, not exceptional.
+The job also copies `data prepare`'s freshly converted `det_{train,val}_coco.json` (written to a
+fresh `runs/01-data/<ts>/` per spec 01's convention) into the fixed location
+`configs/bdd100k.yaml`'s `dataset.annotations` expects (`data/bdd100k/labels/det_20/`), since
+those two conventions don't line up for real bdd100k the way they do for the mini_bdd fixture.
+
+Before writing the script, closed a real H8 provenance gap the SLURM chain would otherwise have
+exposed: added a `--chosen-on` option to `gdp evaluate` (`src/gdp/cli.py`) that only accepts
+`"train"`, requires `--box-threshold`, and is rejected if combined with `--sweep` (redundant —
+`--sweep` already stamps `chosen_on: "train"` itself). Without it, the val run in the SLURM
+chain — which supplies the sweep's winning threshold via `--box-threshold` rather than sweeping
+itself — would have had its `metrics.json` mislabelled `chosen_on: "cli_override"`, hiding the
+fact that the number really did come from a train-only sweep. Added 6 new tests: 2
+`Config.validate()` cases for `detector.sweep_candidates` (empty, out-of-range), and, spanning
+this task and the tail of task 6, 4 CLI tests covering `--chosen-on`'s full validation surface
+(rejects non-"train" values, requires `--box-threshold`, and — the positive case — actually
+produces `chosen_on: "train"` in the written `metrics.json` when used correctly).
+
+With task 7 done, all 7 tasks in spec 02's checklist are checked. Flipped spec 02's status from
+`approved` to `in-progress` (not `done`) in both `specs/02-zeroshot-baseline.md` and
+`specs/README.md`: acceptance criterion 1 ("`metrics.json` contains mAP + per-class AP on the
+**full** official val split") is not yet satisfied — that requires the cluster to actually run
+`sbatch scripts/slurm/zeroshot_eval.slurm` against real, downloaded BDD100K, which is still the
+long-lead item this session cannot unblock.
+
+### Why
+The SLURM script is the literal deliverable CLAUDE.md §4 requires in place of ever training or
+running a full evaluation in-session on the M4 laptop: "emit a SLURM script and hand it to the
+user." H8 makes the chain's exact shape non-negotiable — the threshold that ends up in the
+reported baseline must be chosen on train and never on val, and `metrics.json` must say so
+truthfully, not just conveniently. The `--chosen-on` fix exists because writing the script honestly
+surfaced a gap the CLI itself couldn't have hidden forever: eventually *something* would need to
+replay a train-derived threshold into a separate val evaluation call (this SLURM script is exactly
+that "something"), and without `--chosen-on`, that call's own `metrics.json` would have quietly
+mislabelled its own provenance the first time anyone actually ran the real chain — precisely the
+"looks like provenance, isn't" failure CLAUDE.md §8 exists to prevent.
+
+### How
+Verified the `run_step` bash mechanism against a real command before trusting it in a script that
+will only ever be reviewed, never run in this session (`bash -n` syntax-checks a script, it does
+not catch "the command substitution captured six lines of tee'd stdout instead of one path"):
+ran `run_step`'s exact logic locally against `uv run gdp detect --dataset mini_bdd` twice in a row
+— the first call captured a clean single-line path via the `-> <path>` trailer grep, the second
+call (with the marker file already present) skipped re-running the command and returned the
+identical cached path, confirming both the parsing and the resumability actually work rather than
+just reading plausibly. Also ran a live `--box-threshold ... --chosen-on train` evaluate call
+against the fixture and inspected the resulting `metrics.json` by hand to confirm `chosen_on` came
+out `"train"` (not `"cli_override"`) before trusting the SLURM script's final step to rely on that
+behavior. Considered building a generic single `run_step` wrapper for *every* step including `data
+prepare`; rejected it for that one step specifically — `data prepare`'s log has multiple `.json`
+paths per invocation (a coco json and a stats json, per split), so the same "`grep` the last
+`-> <path>`" heuristic that works cleanly for `detect`/`evaluate` (which each print exactly one
+summary line) would have silently grabbed the wrong file for `data prepare`; wrote that one step
+by hand with a `det_train_coco.json`-specific pattern instead of forcing a shared abstraction onto
+an input shape it doesn't fit. Chose `uv run python -c "import json; ..."` over `jq` to extract the
+sweep-winning threshold from `metrics_train`'s JSON, since `jq` is not a project dependency and its
+presence on the IITB cluster is an unverified assumption — `uv run python` is already how every
+other line of the job invokes tooling.
+
+### Issues & resolutions
+None new in the script itself — the local dry-run of `run_step` and the `--chosen-on` verification
+both passed on the first attempt once written. (The `--chosen-on` gap itself is not a "bug found
+and fixed" in the SEQ-0018/SEQ-0019 sense — it was designed correctly on the first pass, prompted
+by reasoning about the SLURM chain's needs before writing code, not by a failing test.)
+
+### Verification
+```
+bash -n scripts/slurm/zeroshot_eval.slurm   → syntax OK
+[local run_step dry-run against a real `uv run gdp detect --dataset mini_bdd`]
+                                             → first call: captured a clean predictions.json path
+                                               via the '-> <path>' trailer
+                                             → second call (marker cached): skipped re-running,
+                                               returned the identical path — resumability confirmed
+uv run gdp detect -c configs/default.yaml --dataset mini_bdd
+                                             → mini_bdd/val: 4 images, 4 detections
+uv run gdp evaluate -c configs/default.yaml --dataset mini_bdd --box-threshold 0.2 --chosen-on train
+                                             → mini_bdd/val: mAP=0.0000 ... -> runs/02-zeroshot/<ts>/metrics.json
+python3 -c "print(json.load(open('metrics.json'))['chosen_on'])"
+                                             → train (confirmed, not cli_override)
+uv run ruff check src tests                 → All checks passed!
+uv run pytest tests/test_cli.py -q          → 19 passed
+uv run pytest                               → 102 passed in 55.62s (up from 99; +3 new
+                                               --chosen-on tests)
+bash scripts/smoke.sh                       → SMOKE OK (device: mps)
+git status --short                          → clean except the intended diffs; all manual
+                                               detect/evaluate runs' runs/02-zeroshot/<ts>/
+                                               directories deleted by hand (specific timestamped
+                                               paths, never a recursive runs/ delete)
+```
+
+**Next:** hand `scripts/slurm/zeroshot_eval.slurm` to the user for review and `sbatch` on the IITB
+cluster once real BDD100K is registered and downloaded there (`docs/bdd100k-download.md`) — that
+run is what actually satisfies spec 02's acceptance criterion 1 and flips its status to `done`.
+All 7 of spec 02's laptop-side tasks (detector skeleton, span→class mapping, `gdp detect`,
+COCO mAP + operating-point P/R, `gdp evaluate` + provenance, the train-only sweep guard, and this
+SLURM script) are complete, tested (102 passing tests total, up from 69 at the start of this
+session), lint-clean, and narrated end-to-end in this file. After the cluster run lands the real
+`metrics.json`, spec 03 (fine-tune the detector) becomes unblockable — H8 requires exactly this
+baseline to exist first.

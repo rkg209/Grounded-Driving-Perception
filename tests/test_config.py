@@ -59,6 +59,8 @@ def test_missing_config_file_raises():
         (lambda c: setattr(c.detector, "box_threshold", 1.5), "must be in"),
         (lambda c: setattr(c.dataset, "classes", []), "must not be empty"),
         (lambda c: setattr(c.vlm, "max_new_tokens", 0), "must be positive"),
+        (lambda c: setattr(c.detector, "sweep_candidates", []), "must not be empty"),
+        (lambda c: setattr(c.detector, "sweep_candidates", [0.2, 1.5]), "must be in"),
     ],
 )
 def test_validation_rejects_bad_values(mutate, match):

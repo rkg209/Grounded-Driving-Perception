@@ -6,8 +6,19 @@ works on the M4 laptop and on the SLURM cluster without edits.
 
 from __future__ import annotations
 
+import subprocess
 from datetime import datetime
 from pathlib import Path
+
+
+def git_sha() -> str:
+    """The current commit, for stamping into every metrics.json (CLAUDE.md §8)."""
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "unknown"
 
 
 def repo_root() -> Path:

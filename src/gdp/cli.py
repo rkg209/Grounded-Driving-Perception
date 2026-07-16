@@ -17,7 +17,13 @@ import typer
 from gdp import __version__
 from gdp.config import Config, load_config
 from gdp.data.bdd100k import DEFAULT_IMAGE_HEIGHT, DEFAULT_IMAGE_WIDTH, convert_bdd_to_coco
+from gdp.data.core import load_dataset
 from gdp.data.stats import build_stats, write_stats
+from gdp.detect.detector import GroundingDinoDetector
+from gdp.detect.predictions import write_predictions
+from gdp.eval.coco_map import evaluate_coco_map
+from gdp.eval.metrics_io import build_metrics, write_metrics
+from gdp.eval.operating_point import GtBox, PredBox, match_operating_point, sweep_threshold
 from gdp.logging import get_logger
 from gdp.paths import repo_root, resolve, run_dir
 from gdp.seed import select_device, set_seed
@@ -160,16 +166,220 @@ def data_prepare(
     typer.echo(f"images root: {images_root}")
 
 
-@app.command()
-def detect(config: ConfigOpt = None) -> None:
-    """Run the open-vocabulary detector on images with text queries (Stage 1)."""
-    _pending("02-zeroshot-baseline", "Grounding-DINO inference")
+def _detect_dataset_paths(cfg: Config, dataset: str, split: str) -> tuple[Path, Path]:
+    """The COCO-style annotations + images-root pair `gdp detect` reads for one split.
+
+    mini_bdd only has a 'val' split (the committed fixture). For real bdd100k the configured
+    `dataset.annotations` path names the 'val' file (`det_val_coco.json`, per
+    `configs/bdd100k.yaml`) — swap the split name in for train, matching `data prepare`'s own
+    `det_<split>_coco.json` output convention.
+    """
+    if dataset == "mini_bdd":
+        return cfg.dataset.annotations_path(), cfg.dataset.root_path()
+    annotations = cfg.dataset.annotations_path()
+    if split != "val":
+        annotations = annotations.with_name(annotations.name.replace("val", split))
+    return annotations, cfg.dataset.root_path() / split
 
 
 @app.command()
-def evaluate(config: ConfigOpt = None) -> None:
-    """Evaluate detection mAP / grounding accuracy against a baseline (H8)."""
-    _pending("02-zeroshot-baseline", "detection evaluation (mAP, grounding accuracy)")
+def detect(
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+    split: Annotated[str, typer.Option("--split", help="train or val")] = "val",
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="Cap the number of images processed.")
+    ] = None,
+    box_threshold: Annotated[
+        float | None,
+        typer.Option("--box-threshold", help="Override the config's detector.box_threshold."),
+    ] = None,
+) -> None:
+    """Run the pretrained, unmodified detector on images with text queries (Stage 1, spec 02, H1).
+
+    Writes `runs/02-zeroshot/<timestamp>/predictions.json` — COCO-detection-result format
+    (absolute xywh boxes + score + image_id + category_id), the input `gdp evaluate` scores
+    against ground truth. `--dataset mini_bdd` runs the identical code path on the synthetic
+    fixture: an offline smoke path whose output is never a reported metric (H7).
+    """
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+    if split not in ("train", "val"):
+        _die(f"unknown --split {split!r}; expected 'train' or 'val'")
+    if dataset == "mini_bdd" and split != "val":
+        _die("the mini_bdd fixture only provides a 'val' split")
+
+    cfg = _load(config)
+    set_seed(cfg.seed)
+
+    annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+
+    ds = load_dataset(annotations, images_root)
+    samples = ds.samples[:limit] if limit else ds.samples
+    threshold = cfg.detector.box_threshold if box_threshold is None else box_threshold
+
+    detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
+    detections = detector.detect_images(samples, box_threshold=threshold)
+
+    out_dir = run_dir("02-zeroshot")
+    predictions_path = out_dir / "predictions.json"
+    write_predictions(detections, predictions_path)
+    typer.echo(
+        f"{dataset}/{split}: {len(samples)} images, {len(detections)} detections "
+        f"(box_threshold={threshold}) -> {predictions_path}"
+    )
+
+
+def _latest_predictions_path() -> Path | None:
+    runs_dir = resolve("runs/02-zeroshot")
+    if not runs_dir.is_dir():
+        return None
+    candidates = [
+        d / "predictions.json" for d in runs_dir.iterdir() if (d / "predictions.json").is_file()
+    ]
+    return max(candidates, key=lambda p: p.stat().st_mtime) if candidates else None
+
+
+@app.command()
+def evaluate(
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+    split: Annotated[str, typer.Option("--split", help="train or val")] = "val",
+    predictions: Annotated[
+        str | None,
+        typer.Option(
+            "--predictions",
+            help="Path to a predictions.json; defaults to the most recent "
+            "runs/02-zeroshot/<ts>/predictions.json.",
+        ),
+    ] = None,
+    box_threshold: Annotated[
+        float | None,
+        typer.Option(
+            "--box-threshold",
+            help="Operating threshold for P/R (defaults to detector.box_threshold).",
+        ),
+    ] = None,
+    sweep: Annotated[
+        bool,
+        typer.Option(
+            "--sweep",
+            help="Pick the threshold via detector.sweep_candidates instead of a fixed value. "
+            "Only valid with --split train — sweeping on val is leakage (H8).",
+        ),
+    ] = False,
+    chosen_on_override: Annotated[
+        str | None,
+        typer.Option(
+            "--chosen-on",
+            help="Attest that --box-threshold's value was originally chosen on a train-split "
+            "sweep and is being replayed here (e.g. for the val run after task 6's sweep). "
+            "Only accepts 'train'; requires --box-threshold.",
+        ),
+    ] = None,
+) -> None:
+    """Score detections against ground truth: mAP, per-class AP, operating P/R (spec 02, H8).
+
+    Writes `runs/02-zeroshot/<timestamp>/metrics.json` with full provenance (config, checkpoint,
+    split, image count, git SHA, the threshold and how it was chosen) — a metric without that is
+    a rumour (CLAUDE.md §8). `--dataset mini_bdd` scores the synthetic fixture: the plumbing
+    smoke path, stamped `is_synthetic: true` and never a reported result (H7).
+    """
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+    if split not in ("train", "val"):
+        _die(f"unknown --split {split!r}; expected 'train' or 'val'")
+    if dataset == "mini_bdd" and split != "val":
+        _die("the mini_bdd fixture only provides a 'val' split")
+    if sweep and split != "train":
+        _die(
+            "--sweep must run on --split train, never val — sweeping the threshold on val is "
+            "leakage and would poison the H8 baseline"
+        )
+    if sweep and box_threshold is not None:
+        _die("--sweep and --box-threshold are mutually exclusive")
+    if chosen_on_override is not None and chosen_on_override != "train":
+        _die("--chosen-on only accepts 'train' (attesting the threshold came from a train sweep)")
+    if chosen_on_override is not None and box_threshold is None:
+        _die("--chosen-on requires --box-threshold — it labels where that value came from")
+    if chosen_on_override is not None and sweep:
+        _die("--chosen-on is redundant with --sweep, which already stamps chosen_on=train")
+
+    cfg = _load(config)
+
+    annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+
+    predictions_path = resolve(predictions) if predictions else _latest_predictions_path()
+    if predictions_path is None or not predictions_path.is_file():
+        _die(f"predictions not found: {predictions_path or '(none) — run `gdp detect` first'}")
+
+    ds = load_dataset(annotations, images_root)
+    coco_result = evaluate_coco_map(annotations, predictions_path)
+
+    raw_predictions = json.loads(predictions_path.read_text())
+    pred_boxes = [
+        PredBox(
+            image_id=p["image_id"],
+            class_id=p["category_id"],
+            score=p["score"],
+            xyxy=(
+                p["bbox"][0],
+                p["bbox"][1],
+                p["bbox"][0] + p["bbox"][2],
+                p["bbox"][1] + p["bbox"][3],
+            ),
+        )
+        for p in raw_predictions
+    ]
+    gt_boxes = [
+        GtBox(
+            image_id=sample.image_id, class_id=box.class_id, xyxy=(box.x0, box.y0, box.x1, box.y1)
+        )
+        for sample in ds.samples
+        for box in sample.boxes
+    ]
+
+    if sweep:
+        threshold, _ = sweep_threshold(
+            pred_boxes, gt_boxes, candidates=cfg.detector.sweep_candidates
+        )
+        chosen_on = "train"
+    else:
+        threshold = cfg.detector.box_threshold if box_threshold is None else box_threshold
+        if box_threshold is None:
+            chosen_on = "config_default"
+        else:
+            chosen_on = chosen_on_override or "cli_override"
+
+    kept = [p for p in pred_boxes if p.score >= threshold]
+    per_class_pr_by_id, overall_pr = match_operating_point(kept, gt_boxes)
+    per_class_pr = {
+        cfg.dataset.classes[class_id]: pr for class_id, pr in per_class_pr_by_id.items()
+    }
+
+    metrics = build_metrics(
+        coco_result=coco_result,
+        per_class_pr=per_class_pr,
+        overall_pr=overall_pr,
+        box_threshold=threshold,
+        chosen_on=chosen_on,
+        cfg=cfg,
+        dataset=dataset,
+        split=split,
+        num_images=len(ds.samples),
+        is_synthetic=(dataset == "mini_bdd"),
+    )
+    out_dir = run_dir("02-zeroshot")
+    metrics_path = write_metrics(metrics, out_dir=out_dir)
+    typer.echo(
+        f"{dataset}/{split}: mAP={coco_result.map:.4f} mAP50={coco_result.map50:.4f} "
+        f"P={overall_pr.precision:.3f} R={overall_pr.recall:.3f} (threshold={threshold}) "
+        f"-> {metrics_path}"
+    )
 
 
 @app.command()
