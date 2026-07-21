@@ -38,7 +38,6 @@ credentials.json
 *.pem
 *.key
 
-# Claude Code workspace (don't expose Claude usage)
 .claude/
 
 # macOS
@@ -54,3 +53,7 @@ credentials.json
 
 # Allow test fixtures (tiny, synthetic, must be committed)
 !tests/fixtures/**
+CLAUDE.md
+specs/
+grounded-driving-perception-spec.md
+progress_report.md
