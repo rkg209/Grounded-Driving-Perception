@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from torch.utils.data import DataLoader
+from transformers import AutoProcessor, GroundingDinoForObjectDetection
 
 from gdp import __version__
 from gdp.config import Config, load_config
@@ -22,11 +24,16 @@ from gdp.data.stats import build_stats, write_stats
 from gdp.detect.detector import GroundingDinoDetector
 from gdp.detect.predictions import write_predictions
 from gdp.eval.coco_map import evaluate_coco_map
+from gdp.eval.compare import build_comparison, load_metrics, write_comparison
 from gdp.eval.metrics_io import build_metrics, write_metrics
 from gdp.eval.operating_point import GtBox, PredBox, match_operating_point, sweep_threshold
+from gdp.eval.qualitative import find_miss_to_hit_pairs, save_pair_crops
 from gdp.logging import get_logger
 from gdp.paths import repo_root, resolve, run_dir
+from gdp.probe.openvocab import load_probe_images, load_probe_phrases, run_probe, write_probe_result
 from gdp.seed import select_device, set_seed
+from gdp.train.dataset import DetectionCollator, SampleDataset
+from gdp.train.trainer import DetectorTrainer
 
 app = typer.Typer(
     name="gdp",
@@ -38,6 +45,14 @@ app = typer.Typer(
 data_app = typer.Typer(
     name="data",
     help="Prepare BDD100K / mini_bdd into the project's canonical COCO-style schema.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+train_app = typer.Typer(
+    name="train",
+    help="Fine-tune a pretrained backbone (spec 03) — adaptation, never training from scratch "
+    "(H1).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -95,6 +110,25 @@ _VALID_SPLITS = ("train", "val", "both")
 def _die(message: str) -> None:
     typer.secho(message, fg=typer.colors.RED, err=True)
     raise typer.Exit(code=1)
+
+
+def _load_pred_boxes(predictions_path: Path) -> list[PredBox]:
+    """COCO-detection-result JSON (absolute xywh) -> `PredBox`es (absolute xyxy)."""
+    raw_predictions = json.loads(predictions_path.read_text())
+    return [
+        PredBox(
+            image_id=p["image_id"],
+            class_id=p["category_id"],
+            score=p["score"],
+            xyxy=(
+                p["bbox"][0],
+                p["bbox"][1],
+                p["bbox"][0] + p["bbox"][2],
+                p["bbox"][1] + p["bbox"][3],
+            ),
+        )
+        for p in raw_predictions
+    ]
 
 
 def _raw_frames_path(cfg: Config, dataset: str, split: str) -> Path:
@@ -194,13 +228,30 @@ def detect(
         float | None,
         typer.Option("--box-threshold", help="Override the config's detector.box_threshold."),
     ] = None,
+    checkpoint: Annotated[
+        str | None,
+        typer.Option(
+            "--checkpoint",
+            help="Local checkpoint dir (e.g. runs/03-finetune/<ts>/checkpoint-N) overriding "
+            "detector.model_id — lets the fine-tuned model reuse this exact code path (spec 03).",
+        ),
+    ] = None,
+    run_spec: Annotated[
+        str,
+        typer.Option(
+            "--run-spec", help="Which runs/<spec>/ directory to write under (spec 03's rescoring)."
+        ),
+    ] = "02-zeroshot",
 ) -> None:
-    """Run the pretrained, unmodified detector on images with text queries (Stage 1, spec 02, H1).
+    """Run the detector on images with text queries (Stage 1, spec 02/03, H1).
 
-    Writes `runs/02-zeroshot/<timestamp>/predictions.json` — COCO-detection-result format
+    Writes `runs/<run-spec>/<timestamp>/predictions.json` — COCO-detection-result format
     (absolute xywh boxes + score + image_id + category_id), the input `gdp evaluate` scores
     against ground truth. `--dataset mini_bdd` runs the identical code path on the synthetic
-    fixture: an offline smoke path whose output is never a reported metric (H7).
+    fixture: an offline smoke path whose output is never a reported metric (H7). `--checkpoint`
+    swaps in a fine-tuned local checkpoint while keeping every other step of the pipeline
+    byte-identical to the zero-shot run — that identity is what makes the spec 03 mAP delta (H8)
+    honest.
     """
     if dataset not in _VALID_DATASETS:
         _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
@@ -210,6 +261,8 @@ def detect(
         _die("the mini_bdd fixture only provides a 'val' split")
 
     cfg = _load(config)
+    if checkpoint is not None:
+        cfg.detector.model_id = checkpoint
     set_seed(cfg.seed)
 
     annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
@@ -223,7 +276,7 @@ def detect(
     detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
     detections = detector.detect_images(samples, box_threshold=threshold)
 
-    out_dir = run_dir("02-zeroshot")
+    out_dir = run_dir(run_spec)
     predictions_path = out_dir / "predictions.json"
     write_predictions(detections, predictions_path)
     typer.echo(
@@ -232,8 +285,8 @@ def detect(
     )
 
 
-def _latest_predictions_path() -> Path | None:
-    runs_dir = resolve("runs/02-zeroshot")
+def _latest_predictions_path(run_spec: str = "02-zeroshot") -> Path | None:
+    runs_dir = resolve(f"runs/{run_spec}")
     if not runs_dir.is_dir():
         return None
     candidates = [
@@ -279,10 +332,18 @@ def evaluate(
             "Only accepts 'train'; requires --box-threshold.",
         ),
     ] = None,
+    run_spec: Annotated[
+        str,
+        typer.Option(
+            "--run-spec",
+            help="Which runs/<spec>/ directory to read predictions from and write metrics under "
+            "(spec 03 rescores the fine-tuned model under 03-finetune).",
+        ),
+    ] = "02-zeroshot",
 ) -> None:
-    """Score detections against ground truth: mAP, per-class AP, operating P/R (spec 02, H8).
+    """Score detections against ground truth: mAP, per-class AP, operating P/R (spec 02/03, H8).
 
-    Writes `runs/02-zeroshot/<timestamp>/metrics.json` with full provenance (config, checkpoint,
+    Writes `runs/<run-spec>/<timestamp>/metrics.json` with full provenance (config, checkpoint,
     split, image count, git SHA, the threshold and how it was chosen) — a metric without that is
     a rumour (CLAUDE.md §8). `--dataset mini_bdd` scores the synthetic fixture: the plumbing
     smoke path, stamped `is_synthetic: true` and never a reported result (H7).
@@ -313,28 +374,14 @@ def evaluate(
     if not annotations.is_file():
         _die(f"annotations not found: {annotations}")
 
-    predictions_path = resolve(predictions) if predictions else _latest_predictions_path()
+    predictions_path = resolve(predictions) if predictions else _latest_predictions_path(run_spec)
     if predictions_path is None or not predictions_path.is_file():
         _die(f"predictions not found: {predictions_path or '(none) — run `gdp detect` first'}")
 
     ds = load_dataset(annotations, images_root)
     coco_result = evaluate_coco_map(annotations, predictions_path)
 
-    raw_predictions = json.loads(predictions_path.read_text())
-    pred_boxes = [
-        PredBox(
-            image_id=p["image_id"],
-            class_id=p["category_id"],
-            score=p["score"],
-            xyxy=(
-                p["bbox"][0],
-                p["bbox"][1],
-                p["bbox"][0] + p["bbox"][2],
-                p["bbox"][1] + p["bbox"][3],
-            ),
-        )
-        for p in raw_predictions
-    ]
+    pred_boxes = _load_pred_boxes(predictions_path)
     gt_boxes = [
         GtBox(
             image_id=sample.image_id, class_id=box.class_id, xyxy=(box.x0, box.y0, box.x1, box.y1)
@@ -373,12 +420,271 @@ def evaluate(
         num_images=len(ds.samples),
         is_synthetic=(dataset == "mini_bdd"),
     )
-    out_dir = run_dir("02-zeroshot")
+    out_dir = run_dir(run_spec)
     metrics_path = write_metrics(metrics, out_dir=out_dir)
     typer.echo(
         f"{dataset}/{split}: mAP={coco_result.map:.4f} mAP50={coco_result.map50:.4f} "
         f"P={overall_pr.precision:.3f} R={overall_pr.recall:.3f} (threshold={threshold}) "
         f"-> {metrics_path}"
+    )
+
+
+@train_app.command("detector")
+def train_detector(
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+    split: Annotated[str, typer.Option("--split", help="train or val")] = "train",
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="Cap the number of training images.")
+    ] = None,
+    overfit: Annotated[
+        int | None,
+        typer.Option(
+            "--overfit",
+            help="Train on a fixed N-image subset and enforce training.overfit_loss_target as an "
+            "exit-code gate (design decision 5) — overrides --limit and training.overfit_images.",
+        ),
+    ] = None,
+    max_steps: Annotated[
+        int | None,
+        typer.Option(
+            "--max-steps",
+            help="Total optimizer steps. Defaults to training.overfit_max_steps in --overfit "
+            "mode, else training.epochs * steps-per-epoch.",
+        ),
+    ] = None,
+    resume: Annotated[
+        str | None,
+        typer.Option("--resume", help="A checkpoint-<step> dir to restore step/optimizer from."),
+    ] = None,
+) -> None:
+    """Fine-tune the detector on BDD100K train (spec 03, H1: adapting a pretrained backbone).
+
+    Writes `runs/03-finetune/<timestamp>/checkpoint-<step>/` (model + processor + trainer_state.pt)
+    and `train_log.jsonl`. `--overfit N` is the overfit gate (acceptance 1): trains on N fixed
+    images and exits non-zero if the final loss doesn't clear `training.overfit_loss_target` — the
+    SLURM job refuses to start the full run if this fails.
+    """
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+    if split not in ("train", "val"):
+        _die(f"unknown --split {split!r}; expected 'train' or 'val'")
+
+    cfg = _load(config)
+    set_seed(cfg.seed)
+    device = select_device(cfg.device)
+    if device.type == "mps":
+        # CLAUDE.md §4: this M4 cannot fine-tune Grounding-DINO, full stop — verified empirically,
+        # not just asserted: MPS's SDPA backend rejects dropout (raised mid-forward the moment
+        # model.train() enables it), and forcing attn_implementation="eager" to route around that
+        # OOMs at ~20GB on Grounding-DINO's decoder cross-attention. CPU is slow but correct, which
+        # is exactly what design decision 5 asks the laptop path to be — never a training device
+        # this command silently pretends works.
+        typer.secho(
+            "device=mps cannot fine-tune Grounding-DINO (CLAUDE.md §4); falling back to cpu.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        device = select_device("cpu")
+
+    annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+
+    ds = load_dataset(annotations, images_root)
+    n_images = overfit if overfit is not None else limit
+    samples = ds.samples[:n_images] if n_images else ds.samples
+
+    processor = AutoProcessor.from_pretrained(cfg.detector.model_id)
+    model = GroundingDinoForObjectDetection.from_pretrained(
+        cfg.detector.model_id, disable_custom_kernels=cfg.detector.disable_custom_kernels
+    )
+
+    out_dir = run_dir("03-finetune")
+    trainer = DetectorTrainer(model, processor, cfg.training, out_dir, device=device)
+    if resume:
+        trainer.resume(resume)
+
+    collator = DetectionCollator(processor, ds.prompt())
+    loader = DataLoader(
+        SampleDataset(samples),
+        batch_size=cfg.training.batch_size,
+        shuffle=True,
+        collate_fn=collator,
+    )
+    steps_per_epoch = max(len(loader), 1)
+    total_steps = max_steps or (
+        cfg.training.overfit_max_steps
+        if overfit is not None
+        else cfg.training.epochs * steps_per_epoch
+    )
+    trainer.build_scheduler(total_steps)
+
+    final_loss: float | None = None
+    while trainer.step < total_steps:
+        for batch in loader:
+            if trainer.step >= total_steps:
+                break
+            record = trainer.train_step(batch)
+            final_loss = record["loss"]
+            if trainer.step % cfg.training.save_every == 0:
+                trainer.save_checkpoint()
+    ckpt_dir = trainer.save_checkpoint()
+
+    if overfit is not None:
+        target = cfg.training.overfit_loss_target
+        if final_loss is None or final_loss >= target:
+            typer.secho(
+                f"overfit gate FAILED: final loss {final_loss} >= target {target}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        typer.echo(f"overfit gate passed: final loss {final_loss:.4f} < {target} -> {ckpt_dir}")
+    else:
+        typer.echo(f"trained {trainer.step} steps, final loss {final_loss:.4f} -> {ckpt_dir}")
+
+
+@app.command()
+def compare(
+    zeroshot: Annotated[
+        str, typer.Option("--zeroshot", help="Path to spec 02's zero-shot metrics.json.")
+    ],
+    finetuned: Annotated[
+        str, typer.Option("--finetuned", help="Path to spec 03's fine-tuned metrics.json.")
+    ],
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+    split: Annotated[str, typer.Option("--split", help="train or val")] = "val",
+    zeroshot_predictions: Annotated[
+        str | None,
+        typer.Option(
+            "--zeroshot-predictions", help="Zero-shot predictions.json (required for --dump-pairs)."
+        ),
+    ] = None,
+    finetuned_predictions: Annotated[
+        str | None,
+        typer.Option(
+            "--finetuned-predictions",
+            help="Fine-tuned predictions.json (required for --dump-pairs).",
+        ),
+    ] = None,
+    dump_pairs: Annotated[
+        int,
+        typer.Option(
+            "--dump-pairs",
+            help="Save up to N zero-shot-miss -> fine-tuned-hit crops (acceptance 5). 0 disables.",
+        ),
+    ] = 0,
+) -> None:
+    """The zero-shot -> fine-tuned mAP delta (spec 03 design decision 8, H8).
+
+    Writes `runs/03-finetune/<timestamp>/comparison.json`: `map_zeroshot`, `map_finetuned`,
+    `map_delta`, the same for mAP50, a per-class AP before/after/delta table, and a `regressions`
+    field listing every class whose AP went down — never only a paragraph someone could omit (H7).
+    Refuses to emit unless both inputs agree on dataset/split/num_images/box_threshold.
+    `--dump-pairs N` additionally saves up to N ground-truth boxes the zero-shot model missed but
+    the fine-tuned model caught, cropped to `runs/03-finetune/<timestamp>/pairs/` — a qualitative
+    gallery for the write-up, never a metric of its own.
+    """
+    zeroshot_metrics = load_metrics(zeroshot)
+    finetuned_metrics = load_metrics(finetuned)
+    try:
+        result = build_comparison(zeroshot_metrics, finetuned_metrics)
+    except ValueError as exc:
+        _die(str(exc))
+
+    out_dir = run_dir("03-finetune")
+    comparison_path = write_comparison(result, out_dir=out_dir)
+    typer.echo(
+        f"mAP: {result['map_zeroshot']:.4f} -> {result['map_finetuned']:.4f} "
+        f"(delta {result['map_delta']:+.4f}); regressions: {result['regressions']} "
+        f"-> {comparison_path}"
+    )
+
+    if dump_pairs > 0:
+        if not zeroshot_predictions or not finetuned_predictions:
+            _die("--dump-pairs requires both --zeroshot-predictions and --finetuned-predictions")
+
+        cfg = _load(config)
+        annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
+        ds = load_dataset(annotations, images_root)
+        gt_boxes = [
+            GtBox(
+                image_id=sample.image_id,
+                class_id=box.class_id,
+                xyxy=(box.x0, box.y0, box.x1, box.y1),
+            )
+            for sample in ds.samples
+            for box in sample.boxes
+        ]
+        zeroshot_pred_boxes = _load_pred_boxes(resolve(zeroshot_predictions))
+        finetuned_pred_boxes = _load_pred_boxes(resolve(finetuned_predictions))
+
+        pairs = find_miss_to_hit_pairs(
+            gt_boxes, zeroshot_pred_boxes, finetuned_pred_boxes, limit=dump_pairs
+        )
+        image_path_by_id = {sample.image_id: sample.image_path for sample in ds.samples}
+        pairs_dir = out_dir / "pairs"
+        saved = save_pair_crops(
+            pairs, image_path_by_id, list(cfg.dataset.classes), out_dir=pairs_dir
+        )
+        typer.echo(f"dumped {len(saved)} zero-shot-miss -> fine-tuned-hit crops -> {pairs_dir}")
+
+
+@app.command("probe-openvocab")
+def probe_openvocab(
+    config: ConfigOpt = None,
+    probe_config: Annotated[
+        str,
+        typer.Option("--probe-config", help="YAML with the out-of-taxonomy 'phrases' list."),
+    ] = "configs/openvocab_probe.yaml",
+    checkpoint: Annotated[
+        str | None,
+        typer.Option("--checkpoint", help="Local checkpoint dir or HF id (defaults to config)."),
+    ] = None,
+    images_root: Annotated[
+        str | None,
+        typer.Option("--images-root", help="Image directory to probe (defaults to dataset.root)."),
+    ] = None,
+    limit: Annotated[int, typer.Option("--limit", help="Cap the number of images probed.")] = 4,
+    box_threshold: Annotated[
+        float | None,
+        typer.Option("--box-threshold", help="Override detector.box_threshold for the probe."),
+    ] = None,
+) -> None:
+    """Open-vocabulary forgetting probe (spec 03 design decision 9). Never a metric (H9).
+
+    Runs a handful of out-of-taxonomy phrases (no BDD100K ground truth exists for them) through
+    the *unmodified* detector — same `GroundingDinoDetector`, an arbitrary phrase list standing in
+    for `cfg.dataset.classes`. Writes `runs/03-finetune/<timestamp>/probe.json`, stamped
+    `is_demo: true, is_metric: false`, plus annotated crops for visual inspection. Run once against
+    the zero-shot checkpoint and once against the fine-tuned one; the write-up compares them by eye.
+    """
+    cfg = _load(config)
+    set_seed(cfg.seed)
+    if checkpoint is not None:
+        cfg.detector.model_id = checkpoint
+    threshold = cfg.detector.box_threshold if box_threshold is None else box_threshold
+
+    phrases = load_probe_phrases(probe_config)
+
+    root = resolve(images_root) if images_root else cfg.dataset.root_path()
+    if not root.is_dir():
+        _die(f"images root not found: {root}")
+
+    samples = load_probe_images(root, limit=limit)
+    if not samples:
+        _die(f"no images found under {root}")
+
+    out_dir = run_dir("03-finetune")
+    result = run_probe(
+        cfg.detector, phrases, samples, device=cfg.device, box_threshold=threshold, out_dir=out_dir
+    )
+    probe_path = write_probe_result(result, out_dir=out_dir)
+    typer.echo(
+        f"probed {len(samples)} images x {len(phrases)} phrases: {len(result['detections'])} "
+        f"detections (demo only, no metric — H9) -> {probe_path}"
     )
 
 
@@ -401,6 +707,7 @@ def demo(config: ConfigOpt = None) -> None:
 
 
 app.add_typer(data_app, name="data")
+app.add_typer(train_app, name="train")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,25 @@
+# Spec 03 — fine-tuning tunables. Overlay onto configs/default.yaml (+ configs/bdd100k.yaml for the
+# real run), e.g.:
+#   uv run gdp train detector -c configs/default.yaml -c configs/bdd100k.yaml -c configs/train_detector.yaml
+#
+# Every number here is a deliberate choice, not a magic constant buried in trainer.py (CLAUDE.md §8).
+
+training:
+  lr: 1.0e-4
+  # Vision backbone is pretrained and near-converged; move it slower than the fusion/decoder heads.
+  backbone_lr_mult: 0.1
+  weight_decay: 1.0e-4
+  warmup_ratio: 0.1
+  epochs: 12
+  batch_size: 4
+  grad_accum: 1
+  max_grad_norm: 0.1
+  freeze_text_encoder: true
+  gradient_checkpointing: false
+  # Overfit-20 gate (design decision 5): must be true (final loss < overfit_loss_target) before the
+  # real run is allowed to start.
+  overfit_images: 20
+  overfit_max_steps: 200
+  overfit_loss_target: 1.0
+  save_every: 500
+  log_every: 10

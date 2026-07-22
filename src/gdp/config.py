@@ -88,6 +88,65 @@ class DetectorConfig:
 
 
 @dataclass
+class TrainingConfig:
+    """Spec 03 — fine-tuning the detector. Tunables only; no magic constants in trainer code."""
+
+    lr: float = 1e-4
+    # Grounding-DINO's vision backbone is pretrained and near-converged; it moves slower than the
+    # freshly-initialized fusion/decoder heads it feeds into.
+    backbone_lr_mult: float = 0.1
+    weight_decay: float = 1e-4
+    warmup_ratio: float = 0.1
+    epochs: int = 12
+    batch_size: int = 4
+    grad_accum: int = 1
+    max_grad_norm: float = 0.1
+    freeze_text_encoder: bool = True
+    gradient_checkpointing: bool = False
+    # The overfit-20 gate (spec 03 design decision 5): trains on a fixed subset and asserts
+    # final loss < overfit_loss_target before the real run is allowed to start.
+    overfit_images: int = 20
+    overfit_max_steps: int = 200
+    overfit_loss_target: float = 1.0
+    save_every: int = 500
+    log_every: int = 10
+
+    def validate(self) -> None:
+        if self.lr <= 0:
+            raise ValueError(f"training.lr must be positive, got {self.lr}")
+        if self.backbone_lr_mult <= 0:
+            raise ValueError(
+                f"training.backbone_lr_mult must be positive, got {self.backbone_lr_mult}"
+            )
+        if self.weight_decay < 0:
+            raise ValueError(f"training.weight_decay must be non-negative, got {self.weight_decay}")
+        if not 0.0 <= self.warmup_ratio <= 1.0:
+            raise ValueError(f"training.warmup_ratio must be in [0, 1], got {self.warmup_ratio}")
+        if self.epochs <= 0:
+            raise ValueError(f"training.epochs must be positive, got {self.epochs}")
+        if self.batch_size <= 0:
+            raise ValueError(f"training.batch_size must be positive, got {self.batch_size}")
+        if self.grad_accum <= 0:
+            raise ValueError(f"training.grad_accum must be positive, got {self.grad_accum}")
+        if self.max_grad_norm <= 0:
+            raise ValueError(f"training.max_grad_norm must be positive, got {self.max_grad_norm}")
+        if self.overfit_images <= 0:
+            raise ValueError(f"training.overfit_images must be positive, got {self.overfit_images}")
+        if self.overfit_max_steps <= 0:
+            raise ValueError(
+                f"training.overfit_max_steps must be positive, got {self.overfit_max_steps}"
+            )
+        if self.overfit_loss_target <= 0:
+            raise ValueError(
+                f"training.overfit_loss_target must be positive, got {self.overfit_loss_target}"
+            )
+        if self.save_every <= 0:
+            raise ValueError(f"training.save_every must be positive, got {self.save_every}")
+        if self.log_every <= 0:
+            raise ValueError(f"training.log_every must be positive, got {self.log_every}")
+
+
+@dataclass
 class VLMConfig:
     """Stage 2 — driving-scene VQA. Separate model from the detector (H6)."""
 
@@ -104,6 +163,7 @@ class Config:
     paths: PathsConfig = field(default_factory=PathsConfig)
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
     detector: DetectorConfig = field(default_factory=DetectorConfig)
+    training: TrainingConfig = field(default_factory=TrainingConfig)
     vlm: VLMConfig = field(default_factory=VLMConfig)
 
     def validate(self) -> Config:
@@ -130,6 +190,7 @@ class Config:
                 )
         if self.vlm.max_new_tokens <= 0:
             raise ValueError("vlm.max_new_tokens must be positive")
+        self.training.validate()
         return self
 
 

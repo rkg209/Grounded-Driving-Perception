@@ -1,0 +1,9 @@
+# Spec 03 design decision 9 — out-of-taxonomy phrases with no BDD100K ground truth (H9: no
+# accuracy number, ever; this is a qualitative demo only). Run once against the zero-shot
+# checkpoint and once against the fine-tuned checkpoint; the write-up compares them by eye.
+
+phrases:
+  - construction cone
+  - stroller
+  - police car
+  - road debris

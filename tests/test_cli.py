@@ -24,7 +24,7 @@ PENDING = {
 def test_help_lists_the_whole_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ["info", "data", "detect", "evaluate", *PENDING]:
+    for command in ["info", "data", "detect", "evaluate", "train", *PENDING]:
         assert command in result.stdout
 
 
@@ -175,7 +175,7 @@ def test_evaluate_mini_bdd_writes_metrics_with_full_provenance(clean_02_zeroshot
 
 
 def test_evaluate_fails_loudly_with_no_predictions(monkeypatch, clean_02_zeroshot_runs):
-    monkeypatch.setattr("gdp.cli._latest_predictions_path", lambda: None)
+    monkeypatch.setattr("gdp.cli._latest_predictions_path", lambda run_spec="02-zeroshot": None)
     result = runner.invoke(app, ["evaluate", "-c", "configs/default.yaml", "--dataset", "mini_bdd"])
     assert result.exit_code == 1
     assert "predictions not found" in (result.stdout + str(result.stderr or ""))
@@ -300,3 +300,285 @@ def test_evaluate_chosen_on_requires_box_threshold(clean_02_zeroshot_runs):
     )
     assert result.exit_code == 1
     assert "requires --box-threshold" in (result.stdout + str(result.stderr or ""))
+
+
+@pytest.fixture
+def clean_03_finetune_runs():
+    """A fine-tuning CLI command writes a fresh timestamped dir; clean up after."""
+    runs_dir = resolve("runs/03-finetune")
+    before = set(runs_dir.iterdir()) if runs_dir.is_dir() else set()
+    yield
+    after = set(runs_dir.iterdir()) if runs_dir.is_dir() else set()
+    for new_dir in after - before:
+        shutil.rmtree(new_dir)
+
+
+def test_train_detector_writes_checkpoint_and_log(clean_03_finetune_runs, tmp_path):
+    """A short, non-overfit run: checkpoint + processor + trainer_state.pt + train_log.jsonl."""
+    log_every_1 = tmp_path / "log_every_1.yaml"
+    log_every_1.write_text("training:\n  log_every: 1\n")
+
+    result = runner.invoke(
+        app,
+        [
+            "train",
+            "detector",
+            "-c",
+            "configs/default.yaml",
+            "-c",
+            str(log_every_1),
+            "--dataset",
+            "mini_bdd",
+            "--limit",
+            "2",
+            "--max-steps",
+            "1",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/03-finetune")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    ckpt_dirs = sorted(p for p in latest.iterdir() if p.name.startswith("checkpoint-"))
+    assert ckpt_dirs, f"no checkpoint-<step> dir under {latest}"
+    assert (ckpt_dirs[-1] / "trainer_state.pt").is_file()
+    assert (ckpt_dirs[-1] / "config.json").is_file()
+    assert (latest / "train_log.jsonl").is_file()
+    log_lines = (latest / "train_log.jsonl").read_text().strip().splitlines()
+    assert len(log_lines) == 1
+
+
+def test_train_detector_overfit_gate_fails_loudly_when_target_unmet(clean_03_finetune_runs):
+    """Design decision 5's gate: too few steps must not reach `overfit_loss_target`, and the CLI
+    must exit non-zero and say so — never silently report a passing gate."""
+    result = runner.invoke(
+        app,
+        [
+            "train",
+            "detector",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--overfit",
+            "2",
+            "--max-steps",
+            "1",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "overfit gate FAILED" in (result.stdout + str(result.stderr or ""))
+
+
+def test_train_detector_overfit_gate_passes_and_exits_zero(clean_03_finetune_runs, tmp_path):
+    """The gate's other branch: clearing `overfit_loss_target` must exit 0 and say so, not just
+    fail loudly — a gate that can only ever report failure isn't a gate. A generous target isolates
+    the exit-code plumbing from the fixture's real convergence behaviour (design decision 5: the
+    laptop's job is proving the plumbing, not genuine convergence on 4 images)."""
+    lenient_target = tmp_path / "lenient_overfit_target.yaml"
+    lenient_target.write_text("training:\n  overfit_loss_target: 1000000.0\n  log_every: 1\n")
+
+    result = runner.invoke(
+        app,
+        [
+            "train",
+            "detector",
+            "-c",
+            "configs/default.yaml",
+            "-c",
+            str(lenient_target),
+            "--dataset",
+            "mini_bdd",
+            "--overfit",
+            "2",
+            "--max-steps",
+            "1",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    assert "overfit gate passed" in result.stdout
+
+    runs_dir = resolve("runs/03-finetune")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    assert any(p.name.startswith("checkpoint-") for p in latest.iterdir())
+
+
+def test_detect_checkpoint_and_run_spec_write_under_the_named_spec_dir(clean_03_finetune_runs):
+    """`--checkpoint`/`--run-spec` must reuse spec 02's exact detect code path (H8) — a local
+    checkpoint dir loads fine as `detector.model_id`, and output lands under the named run-spec."""
+    train_result = runner.invoke(
+        app,
+        [
+            "train",
+            "detector",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--limit",
+            "2",
+            "--max-steps",
+            "1",
+        ],
+    )
+    assert train_result.exit_code == 0, train_result.stdout
+    runs_dir = resolve("runs/03-finetune")
+    latest_train = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    ckpt_dirs = sorted(p for p in latest_train.iterdir() if p.name.startswith("checkpoint-"))
+    checkpoint = ckpt_dirs[-1]
+
+    detect_result = runner.invoke(
+        app,
+        [
+            "detect",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--checkpoint",
+            str(checkpoint),
+            "--run-spec",
+            "03-finetune",
+        ],
+    )
+    assert detect_result.exit_code == 0, detect_result.stdout
+
+    after = sorted(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    latest_detect = after[-1]
+    assert latest_detect != latest_train
+    assert (latest_detect / "predictions.json").is_file()
+
+
+def test_compare_writes_comparison_json(clean_03_finetune_runs, tmp_path):
+    zeroshot_metrics = tmp_path / "zeroshot_metrics.json"
+    finetuned_metrics = tmp_path / "finetuned_metrics.json"
+    base = {
+        "dataset": "mini_bdd",
+        "split": "val",
+        "num_images": 4,
+        "box_threshold": 0.25,
+        "model_id": "IDEA-Research/grounding-dino-tiny",
+        "map": 0.10,
+        "map50": 0.20,
+        "per_class_ap": {"car": 0.10},
+    }
+    zeroshot_metrics.write_text(json.dumps(base))
+    finetuned_metrics.write_text(json.dumps({**base, "map": 0.15, "map50": 0.25}))
+
+    result = runner.invoke(
+        app,
+        ["compare", "--zeroshot", str(zeroshot_metrics), "--finetuned", str(finetuned_metrics)],
+    )
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/03-finetune")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    comparison = json.loads((latest / "comparison.json").read_text())
+    assert comparison["map_zeroshot"] == 0.10
+    assert comparison["map_finetuned"] == 0.15
+    assert comparison["map_delta"] == pytest.approx(0.05)
+
+
+def test_compare_refuses_mismatched_splits(clean_03_finetune_runs, tmp_path):
+    zeroshot_metrics = tmp_path / "zeroshot_metrics.json"
+    finetuned_metrics = tmp_path / "finetuned_metrics.json"
+    base = {
+        "dataset": "mini_bdd",
+        "split": "val",
+        "num_images": 4,
+        "box_threshold": 0.25,
+        "map": 0.10,
+        "map50": 0.20,
+        "per_class_ap": {"car": 0.10},
+    }
+    zeroshot_metrics.write_text(json.dumps(base))
+    finetuned_metrics.write_text(json.dumps({**base, "num_images": 999}))
+
+    result = runner.invoke(
+        app,
+        ["compare", "--zeroshot", str(zeroshot_metrics), "--finetuned", str(finetuned_metrics)],
+    )
+    assert result.exit_code == 1
+    assert "refusing to compare mismatched runs" in (result.stdout + str(result.stderr or ""))
+
+
+def test_probe_openvocab_writes_demo_stamped_json(clean_03_finetune_runs):
+    result = runner.invoke(
+        app,
+        [
+            "probe-openvocab",
+            "-c",
+            "configs/default.yaml",
+            "--images-root",
+            "tests/fixtures/mini_bdd",
+            "--limit",
+            "2",
+            "--box-threshold",
+            "0.15",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/03-finetune")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    probe = json.loads((latest / "probe.json").read_text())
+    assert probe["is_demo"] is True
+    assert probe["is_metric"] is False
+    assert "construction cone" in probe["phrases"]
+    forbidden_keys = {"accuracy", "map", "precision", "recall"}
+    assert not forbidden_keys & probe.keys()
+
+
+def test_compare_dump_pairs_saves_a_miss_to_hit_crop(clean_03_finetune_runs, tmp_path):
+    """Ground truth image_id 0 has a pedestrian (category_id 0) at bbox [12, 203, 96, 37] —
+    zero-shot predicts nothing there, fine-tuned catches it exactly."""
+    zeroshot_metrics = tmp_path / "zeroshot_metrics.json"
+    finetuned_metrics = tmp_path / "finetuned_metrics.json"
+    base = {
+        "dataset": "mini_bdd",
+        "split": "val",
+        "num_images": 4,
+        "box_threshold": 0.25,
+        "map": 0.10,
+        "map50": 0.20,
+        "per_class_ap": {"pedestrian": 0.10},
+    }
+    zeroshot_metrics.write_text(json.dumps(base))
+    finetuned_metrics.write_text(json.dumps({**base, "map": 0.20, "map50": 0.30}))
+
+    zeroshot_predictions = tmp_path / "zeroshot_predictions.json"
+    finetuned_predictions = tmp_path / "finetuned_predictions.json"
+    zeroshot_predictions.write_text(json.dumps([]))
+    finetuned_predictions.write_text(
+        json.dumps([{"image_id": 0, "category_id": 0, "bbox": [12, 203, 96, 37], "score": 0.9}])
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "compare",
+            "--zeroshot",
+            str(zeroshot_metrics),
+            "--finetuned",
+            str(finetuned_metrics),
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--zeroshot-predictions",
+            str(zeroshot_predictions),
+            "--finetuned-predictions",
+            str(finetuned_predictions),
+            "--dump-pairs",
+            "5",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/03-finetune")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    pairs_dir = latest / "pairs"
+    assert pairs_dir.is_dir()
+    saved = list(pairs_dir.iterdir())
+    assert len(saved) == 1
+    assert "pedestrian" in saved[0].name

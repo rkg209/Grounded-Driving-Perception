@@ -61,6 +61,15 @@ def test_missing_config_file_raises():
         (lambda c: setattr(c.vlm, "max_new_tokens", 0), "must be positive"),
         (lambda c: setattr(c.detector, "sweep_candidates", []), "must not be empty"),
         (lambda c: setattr(c.detector, "sweep_candidates", [0.2, 1.5]), "must be in"),
+        (lambda c: setattr(c.training, "lr", 0.0), "training.lr must be positive"),
+        (
+            lambda c: setattr(c.training, "warmup_ratio", 1.5),
+            "training.warmup_ratio must be in",
+        ),
+        (
+            lambda c: setattr(c.training, "overfit_loss_target", -1.0),
+            "training.overfit_loss_target must be positive",
+        ),
     ],
 )
 def test_validation_rejects_bad_values(mutate, match):
@@ -68,6 +77,13 @@ def test_validation_rejects_bad_values(mutate, match):
     mutate(cfg)
     with pytest.raises((ValueError, TypeError), match=match):
         cfg.validate()
+
+
+def test_train_detector_overlay_only_changes_training():
+    cfg = load_config("configs/default.yaml", "configs/train_detector.yaml")
+    assert cfg.training.lr == 1e-4
+    assert cfg.training.overfit_images == 20
+    assert cfg.detector.model_id == "IDEA-Research/grounding-dino-tiny"
 
 
 def test_detector_prompt_format():
