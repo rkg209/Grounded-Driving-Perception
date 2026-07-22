@@ -8,7 +8,9 @@ fast `uv run pytest` run.
 from __future__ import annotations
 
 import json
+import re
 import shutil
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
@@ -79,6 +81,14 @@ def test_ground_evaluate_writes_metrics_and_per_phrase_with_full_provenance(
     assert len(per_phrase) == 8
     for record in per_phrase:
         assert {"phrase", "qualifier_type", "image_id", "correct"} <= record.keys()
+
+    # `scripts/slurm/grounding_eval.slurm` pipes this command's output through run_step and feeds
+    # the extracted path straight to `gdp ground compare`. Reproduce that extraction exactly: if
+    # it yields anything but an openable metrics.json, the cluster job dies three steps later with
+    # a file-not-found nobody would trace back to a stdout format string.
+    extracted = re.findall(r"-> (\S+)", result.stdout)[-1]
+    assert Path(extracted).is_file(), f"run_step would extract an unopenable path: {extracted!r}"
+    assert Path(extracted).name == "metrics.json"
 
 
 def test_ground_evaluate_refuses_a_tampered_phrases_file(clean_04_grounding_runs, tmp_path):

@@ -54,12 +54,21 @@ def _load_coco_gt_with_safe_ids(gt_path: str | Path) -> COCO:
 
 
 def evaluate_coco_map(
-    gt_path: str | Path, predictions: list[dict[str, Any]] | str | Path
+    gt_path: str | Path,
+    predictions: list[dict[str, Any]] | str | Path,
+    *,
+    image_ids: list[int] | None = None,
 ) -> CocoMapResult:
     """Score COCO-detection-result `predictions` against a COCO-style ground-truth file.
 
     `predictions` is either the in-memory list `gdp.detect.predictions.write_predictions` writes,
     or a path to that JSON on disk.
+
+    `image_ids` restricts the evaluation to the images the detector actually ran on. COCOeval
+    otherwise defaults to *every* image in `gt_path`, so scoring a `--limit`ed detect run against
+    a full split counts every unprocessed image's ground truth as a miss and drives mAP toward
+    zero for a reason that has nothing to do with the model. `None` keeps COCOeval's default
+    (the full split), which is correct only when the detector ran on all of it.
     """
     with contextlib.redirect_stdout(io.StringIO()):
         coco_gt = _load_coco_gt_with_safe_ids(gt_path)
@@ -80,6 +89,8 @@ def evaluate_coco_map(
     with contextlib.redirect_stdout(io.StringIO()):
         coco_dt = coco_gt.loadRes(predictions)
         coco_eval = COCOeval(coco_gt, coco_dt, iouType="bbox")
+        if image_ids is not None:
+            coco_eval.params.imgIds = sorted(image_ids)
         coco_eval.evaluate()
         coco_eval.accumulate()
         coco_eval.summarize()

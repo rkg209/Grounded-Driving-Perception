@@ -22,7 +22,11 @@ from gdp.data.bdd100k import DEFAULT_IMAGE_HEIGHT, DEFAULT_IMAGE_WIDTH, convert_
 from gdp.data.core import load_dataset
 from gdp.data.stats import build_stats, write_stats
 from gdp.detect.detector import GroundingDinoDetector
-from gdp.detect.predictions import write_predictions
+from gdp.detect.predictions import (
+    read_evaluated_image_ids,
+    write_predictions,
+    write_predictions_meta,
+)
 from gdp.eval.coco_map import evaluate_coco_map
 from gdp.eval.compare import build_comparison, load_metrics, write_comparison
 from gdp.eval.metrics_io import build_metrics, write_metrics
@@ -302,6 +306,9 @@ def detect(
     out_dir = run_dir(run_spec)
     predictions_path = out_dir / "predictions.json"
     write_predictions(detections, predictions_path)
+    # Which images this run actually opened — `gdp evaluate` scores against exactly this set, so a
+    # `--limit`ed run is never silently scored against the whole split. See write_predictions_meta.
+    write_predictions_meta([s.image_id for s in samples], predictions_path)
     typer.echo(
         f"{dataset}/{split}: {len(samples)} images, {len(detections)} detections "
         f"(box_threshold={threshold}) -> {predictions_path}"
@@ -402,14 +409,42 @@ def evaluate(
         _die(f"predictions not found: {predictions_path or '(none) — run `gdp detect` first'}")
 
     ds = load_dataset(annotations, images_root)
-    coco_result = evaluate_coco_map(annotations, predictions_path)
+
+    # Score against exactly the images `gdp detect` ran on, not everything in the annotations
+    # file. A `--limit`ed detect run scored against the full split turns every unprocessed image's
+    # ground truth into a phantom false negative: mAP collapses, recall collapses, and `--sweep`'s
+    # F1 argmax is pulled toward a threshold that is too low — all of it silent. `None` means the
+    # predictions have no sidecar (hand-written, or from before this was recorded), in which case
+    # the only honest assumption is that they cover the whole split, said out loud.
+    evaluated_image_ids = read_evaluated_image_ids(predictions_path)
+    if evaluated_image_ids is None:
+        typer.secho(
+            f"no {predictions_path.stem}_meta.json beside {predictions_path.name}; assuming these "
+            "predictions cover the whole split. If they came from a `--limit`ed run, this metric "
+            "is wrong.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        samples = ds.samples
+    else:
+        keep = set(evaluated_image_ids)
+        samples = [s for s in ds.samples if s.image_id in keep]
+        missing = keep - {s.image_id for s in samples}
+        if missing:
+            _die(
+                f"predictions cover {len(missing)} image id(s) absent from {annotations} "
+                f"(e.g. {sorted(missing)[:5]}) — predictions and ground truth disagree about "
+                "which split this is"
+            )
+
+    coco_result = evaluate_coco_map(annotations, predictions_path, image_ids=evaluated_image_ids)
 
     pred_boxes = _load_pred_boxes(predictions_path)
     gt_boxes = [
         GtBox(
             image_id=sample.image_id, class_id=box.class_id, xyxy=(box.x0, box.y0, box.x1, box.y1)
         )
-        for sample in ds.samples
+        for sample in samples
         for box in sample.boxes
     ]
 
@@ -440,7 +475,7 @@ def evaluate(
         cfg=cfg,
         dataset=dataset,
         split=split,
-        num_images=len(ds.samples),
+        num_images=len(samples),
         is_synthetic=(dataset == "mini_bdd"),
     )
     out_dir = run_dir(run_spec)
@@ -525,8 +560,6 @@ def train_detector(
 
     out_dir = run_dir("03-finetune")
     trainer = DetectorTrainer(model, processor, cfg.training, out_dir, device=device)
-    if resume:
-        trainer.resume(resume)
 
     collator = DetectionCollator(processor, ds.prompt())
     loader = DataLoader(
@@ -542,6 +575,11 @@ def train_detector(
         else cfg.training.epochs * steps_per_epoch
     )
     trainer.build_scheduler(total_steps)
+    # After build_scheduler, never before: the checkpoint's LR-schedule position needs a scheduler
+    # to be restored into. `finetune_detector.slurm` resumes on every SLURM preemption, so the
+    # wrong order here restarts the cosine warmup each time — see DetectorTrainer.resume.
+    if resume:
+        trainer.resume(resume)
 
     final_loss: float | None = None
     while trainer.step < total_steps:
@@ -931,9 +969,14 @@ def ground_evaluate(
     metrics_path = write_grounding_metrics(metrics, out_dir=out_dir)
     per_phrase_path = write_per_phrase(results, out_dir=out_dir)
     overall = aggregates["overall"]
+    # `scripts/slurm/grounding_eval.slurm`'s run_step extracts this command's output path with
+    # `grep -oE -- '-> \S+' | tail -1`, so the LAST `-> ` on stdout must be the metrics path and
+    # nothing may follow it on that line. The earlier form ended `-> {metrics}, {per_phrase}` and
+    # handed the job a path with a trailing comma, which `ground compare` then failed to open.
+    typer.echo(f"per-phrase outcomes (H7 failure inspection): {per_phrase_path}")
     typer.echo(
         f"{dataset}: {overall['n']} phrases, accuracy={overall['accuracy']:.3f} "
-        f"(threshold={threshold}, self-built set — H9) -> {metrics_path}, {per_phrase_path}"
+        f"(threshold={threshold}, self-built set — H9) -> {metrics_path}"
     )
 
 

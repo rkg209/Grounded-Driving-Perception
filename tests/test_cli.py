@@ -1,4 +1,15 @@
-"""The CLI is an honest roadmap: implemented commands work, unimplemented ones name their spec."""
+"""The CLI is an honest roadmap: implemented commands work, unimplemented ones name their spec.
+
+Memory hygiene (CLAUDE.md §4): every test here that invokes `detect`, `train detector`, or
+`probe-openvocab` through `CliRunner` reaches a real `.from_pretrained("grounding-dino-tiny")`
+inside the command body — the CLI owns the load, so there is no fixture to scope it to. Each such
+test is marked `model_heavy` individually (the file's other ~18 tests are pure argument-validation
+and JSON plumbing, and must keep running on a bare `uv run pytest`). Unmarked, this one file loads
+the detector 11 times in a single process and hangs a 16GB M4 — the exact failure [SEQ-0034] was
+written about. Run them deliberately, and alone:
+
+    uv run pytest tests/test_cli.py -m model_heavy
+"""
 
 from __future__ import annotations
 
@@ -104,6 +115,7 @@ def clean_02_zeroshot_runs():
         shutil.rmtree(new_dir)
 
 
+@pytest.mark.model_heavy
 def test_detect_mini_bdd_writes_well_formed_predictions(clean_02_zeroshot_runs):
     """Fixture smoke path (H7: no metric is ever reported on mini_bdd) — proves the plumbing
     (config → detector → span→class mapping → predictions.json) end-to-end."""
@@ -132,6 +144,7 @@ def test_detect_mini_bdd_rejects_non_val_split(clean_02_zeroshot_runs):
     assert "'val' split" in (result.stdout + str(result.stderr or ""))
 
 
+@pytest.mark.model_heavy
 def test_evaluate_mini_bdd_writes_metrics_with_full_provenance(clean_02_zeroshot_runs):
     """Fixture smoke path (H7): `metrics.json` must exist, be stamped `is_synthetic: true`, and
     carry every provenance field CLAUDE.md §8 requires — never trust a metric without them."""
@@ -174,6 +187,86 @@ def test_evaluate_mini_bdd_writes_metrics_with_full_provenance(clean_02_zeroshot
     assert metrics["config"]["detector"]["model_id"] == "IDEA-Research/grounding-dino-tiny"
 
 
+# Ground truth for mini_bdd image_id 0: a pedestrian (category 0) at xywh [12, 203, 96, 37], plus
+# a rider and a car. Images 1-3 hold the other 7 boxes. Predicting that one pedestrian perfectly
+# and nothing else is therefore a *perfect* score on image 0 alone, and a poor one across all four
+# — which is exactly what makes it a probe for whether `--limit`'s image set is being respected.
+_PERFECT_ON_IMAGE_0 = [{"image_id": 0, "category_id": 0, "bbox": [12, 203, 96, 37], "score": 0.9}]
+
+
+def _write_predictions_with_meta(tmp_path, image_ids: list[int] | None):
+    """A predictions.json (+ optional sidecar) as `gdp detect` would have written it."""
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(json.dumps(_PERFECT_ON_IMAGE_0))
+    if image_ids is not None:
+        (tmp_path / "predictions_meta.json").write_text(
+            json.dumps({"image_ids": image_ids, "num_images": len(image_ids)})
+        )
+    return predictions_path
+
+
+def _evaluate(predictions_path):
+    return runner.invoke(
+        app,
+        [
+            "evaluate",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_bdd",
+            "--predictions",
+            str(predictions_path),
+            "--box-threshold",
+            "0.5",
+        ],
+    )
+
+
+def test_evaluate_scores_only_the_images_detect_actually_ran_on(clean_02_zeroshot_runs, tmp_path):
+    """The `--limit` trap: predictions from a 1-image run must be scored against that 1 image's
+    ground truth, not the whole split's. Scored against all 4 mini_bdd images, the 7 boxes in
+    images 1-3 become phantom false negatives — mAP collapses and `--sweep` would chase a
+    threshold that is too low, with no error shown anywhere."""
+    result = _evaluate(_write_predictions_with_meta(tmp_path, image_ids=[0]))
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/02-zeroshot")
+    metrics = json.loads(
+        (max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime) / "metrics.json").read_text()
+    )
+    assert metrics["num_images"] == 1, "num_images must report the evaluated set, not the split"
+    # Image 0 holds 3 GT boxes; the one predicted pedestrian is the only true positive available.
+    assert metrics["tp"] == 1
+    assert metrics["fp"] == 0
+    assert metrics["fn"] == 2, "only image 0's other 2 boxes are missed — not images 1-3's seven"
+    assert metrics["per_class_ap"]["pedestrian"] == pytest.approx(1.0)
+
+
+def test_evaluate_without_a_sidecar_assumes_the_full_split_and_says_so(
+    clean_02_zeroshot_runs, tmp_path
+):
+    """A hand-written predictions file has no provenance. Falling back to the full split is the
+    only honest default, but it must be stated out loud, not assumed in silence."""
+    result = _evaluate(_write_predictions_with_meta(tmp_path, image_ids=None))
+    assert result.exit_code == 0, result.stdout
+    assert "assuming these predictions cover the whole split" in str(result.stderr or "")
+
+    runs_dir = resolve("runs/02-zeroshot")
+    metrics = json.loads(
+        (max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime) / "metrics.json").read_text()
+    )
+    assert metrics["num_images"] == 4
+    assert metrics["fn"] == 9, "all 10 GT boxes across 4 images, minus the 1 hit"
+
+
+def test_evaluate_rejects_predictions_from_a_different_split(clean_02_zeroshot_runs, tmp_path):
+    """A sidecar naming image ids the annotations file has never heard of means the predictions
+    and the ground truth are not describing the same data. Refuse, rather than score a subset."""
+    result = _evaluate(_write_predictions_with_meta(tmp_path, image_ids=[0, 4242]))
+    assert result.exit_code == 1
+    assert "disagree about which split this is" in (result.stdout + str(result.stderr or ""))
+
+
 def test_evaluate_fails_loudly_with_no_predictions(monkeypatch, clean_02_zeroshot_runs):
     monkeypatch.setattr("gdp.cli._latest_predictions_path", lambda run_spec="02-zeroshot": None)
     result = runner.invoke(app, ["evaluate", "-c", "configs/default.yaml", "--dataset", "mini_bdd"])
@@ -213,6 +306,7 @@ def test_evaluate_sweep_and_box_threshold_are_mutually_exclusive(clean_02_zerosh
     assert "mutually exclusive" in (result.stdout + str(result.stderr or ""))
 
 
+@pytest.mark.model_heavy
 def test_evaluate_box_threshold_override_is_labelled_cli_override(clean_02_zeroshot_runs):
     """`chosen_on` must honestly reflect where the threshold actually came from — a manual
     `--box-threshold` is neither the config default nor a train-slice sweep."""
@@ -242,6 +336,7 @@ def test_evaluate_box_threshold_override_is_labelled_cli_override(clean_02_zeros
     assert metrics["box_threshold"] == 0.1
 
 
+@pytest.mark.model_heavy
 def test_evaluate_chosen_on_train_replays_a_sweep_winner_honestly(clean_02_zeroshot_runs):
     """`--chosen-on train` is how the SLURM job (task 7) tells the val evaluation run that its
     `--box-threshold` value was genuinely picked by an earlier train-split sweep, not invented
@@ -313,6 +408,7 @@ def clean_03_finetune_runs():
         shutil.rmtree(new_dir)
 
 
+@pytest.mark.model_heavy
 def test_train_detector_writes_checkpoint_and_log(clean_03_finetune_runs, tmp_path):
     """A short, non-overfit run: checkpoint + processor + trainer_state.pt + train_log.jsonl."""
     log_every_1 = tmp_path / "log_every_1.yaml"
@@ -348,6 +444,7 @@ def test_train_detector_writes_checkpoint_and_log(clean_03_finetune_runs, tmp_pa
     assert len(log_lines) == 1
 
 
+@pytest.mark.model_heavy
 def test_train_detector_overfit_gate_fails_loudly_when_target_unmet(clean_03_finetune_runs):
     """Design decision 5's gate: too few steps must not reach `overfit_loss_target`, and the CLI
     must exit non-zero and say so — never silently report a passing gate."""
@@ -370,6 +467,7 @@ def test_train_detector_overfit_gate_fails_loudly_when_target_unmet(clean_03_fin
     assert "overfit gate FAILED" in (result.stdout + str(result.stderr or ""))
 
 
+@pytest.mark.model_heavy
 def test_train_detector_overfit_gate_passes_and_exits_zero(clean_03_finetune_runs, tmp_path):
     """The gate's other branch: clearing `overfit_loss_target` must exit 0 and say so, not just
     fail loudly — a gate that can only ever report failure isn't a gate. A generous target isolates
@@ -403,6 +501,7 @@ def test_train_detector_overfit_gate_passes_and_exits_zero(clean_03_finetune_run
     assert any(p.name.startswith("checkpoint-") for p in latest.iterdir())
 
 
+@pytest.mark.model_heavy
 def test_detect_checkpoint_and_run_spec_write_under_the_named_spec_dir(clean_03_finetune_runs):
     """`--checkpoint`/`--run-spec` must reuse spec 02's exact detect code path (H8) — a local
     checkpoint dir loads fine as `detector.model_id`, and output lands under the named run-spec."""
@@ -502,6 +601,7 @@ def test_compare_refuses_mismatched_splits(clean_03_finetune_runs, tmp_path):
     assert "refusing to compare mismatched runs" in (result.stdout + str(result.stderr or ""))
 
 
+@pytest.mark.model_heavy
 def test_probe_openvocab_writes_demo_stamped_json(clean_03_finetune_runs):
     result = runner.invoke(
         app,

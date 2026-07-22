@@ -71,6 +71,18 @@ class DetectorTrainer:
         self.device = device
         self.step = 0
 
+        # `train_step` performs one optimizer step per call, unconditionally — there is no
+        # accumulation buffer anywhere in this loop. The config field exists (and is validated),
+        # so a cluster run could set `grad_accum: 4` expecting an effective batch of 16 and get
+        # an effective batch of 4 with no warning: a config that lies about what the run did.
+        # Refuse the value we cannot honour rather than silently ignoring it.
+        if config.grad_accum != 1:
+            raise NotImplementedError(
+                f"training.grad_accum={config.grad_accum} but gradient accumulation is not "
+                "implemented — this loop steps the optimizer every batch. Use training.batch_size "
+                "to change the effective batch, or implement accumulation in train_step first."
+            )
+
         self.model.to(self.device)
         if config.freeze_text_encoder:
             for name, param in self.model.named_parameters():
@@ -173,7 +185,20 @@ class DetectorTrainer:
         return ckpt_dir
 
     def resume(self, checkpoint_dir: str | Path) -> None:
+        """Restore step/optimizer/scheduler/RNG. Call this **after** `build_scheduler`.
+
+        The order matters and is enforced rather than documented: with no scheduler built yet,
+        the saved LR-schedule position has nowhere to go, and a resumed run would silently
+        restart its cosine warmup from step 0 every time SLURM preempted it — a training curve
+        with a sawtooth in it that nobody would attribute to a load order.
+        """
         state = torch.load(Path(checkpoint_dir) / "trainer_state.pt", map_location=self.device)
+        if state["scheduler"] is not None and self.scheduler is None:
+            raise RuntimeError(
+                f"{checkpoint_dir} carries scheduler state but no scheduler has been built — "
+                "call build_scheduler(total_steps) before resume(), or the LR schedule restarts "
+                "from warmup step 0"
+            )
         self.optimizer.load_state_dict(state["optimizer"])
         if self.scheduler is not None and state["scheduler"] is not None:
             self.scheduler.load_state_dict(state["scheduler"])

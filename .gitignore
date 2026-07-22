@@ -1,12 +1,17 @@
-# Datasets and outputs — NEVER commit (guarded by .claude/hooks/guard-bash.sh)
-data/
-runs/
-checkpoints/
+# Datasets and outputs — NEVER commit (guarded by .claude/hooks/guard-bash.sh).
+# Every path here is leading-slash anchored to the repo root. Unanchored, `data/` matches ANY
+# directory named `data` at any depth — which is how `src/gdp/data/` (spec 01's entire deliverable)
+# ended up excluded from both git and ruff, and uncommitted. `/data/*` rather than `/data/` so git
+# still descends into the directory: an excluded *directory* is never traversed, which would make
+# the grounding-eval re-inclusions at the bottom of this file silently dead.
+/data/*
+/runs/
+/checkpoints/
 *.onnx
 *.pt
 *.pth
 *.safetensors
-wandb/
+/wandb/
 
 # Python
 __pycache__/
@@ -53,7 +58,19 @@ credentials.json
 
 # Allow test fixtures (tiny, synthetic, must be committed)
 !tests/fixtures/**
+
+# Spec 04's grounding eval set is the ONE thing under data/ that must be committed. H9 permits a
+# self-built benchmark only because "its construction, bias, and drop-rate are fully documented",
+# and design decision 6's hash-freeze is only auditable if the reviewer can see both the phrases
+# and the lock. All three are small, hand-authored text. The overlays (rendered JPEGs) and
+# frames.json stay ignored — they are regenerable from `gdp ground sample-frames --seed`.
+!/data/grounding_eval/
+/data/grounding_eval/*
+!/data/grounding_eval/construction.md
+!/data/grounding_eval/phrases.json
+!/data/grounding_eval/phrases.lock.json
 CLAUDE.md
 specs/
 grounded-driving-perception-spec.md
 progress_report.md
+MANUAL_TESTING.md
