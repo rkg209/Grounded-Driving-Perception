@@ -39,3 +39,11 @@ vlm: # Stage 2 — a SEPARATE model from the detector (H6)
   max_new_tokens: 128
   lora_r: 16
   lora_alpha: 32
+
+grounding: # Spec 04 — self-built grounding eval set, the sanctioned H9 exception
+  iou_threshold: 0.5
+  num_frames: 60
+  min_phrases: 150
+  qualifier_types: [spatial, attribute, relational, negative]
+  phrases_path: data/grounding_eval/phrases.json
+  overlays_dir: data/grounding_eval/overlays

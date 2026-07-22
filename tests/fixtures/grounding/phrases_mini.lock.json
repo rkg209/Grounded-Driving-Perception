@@ -1,0 +1,13 @@
+{
+  "sha256": "db124fd117abc47cbf685b75e7f2bcaedff604aac425eb56f2da849a0fd54376",
+  "num_phrases": 8,
+  "per_type_counts": {
+    "spatial": 2,
+    "attribute": 2,
+    "relational": 2,
+    "negative": 2
+  },
+  "frozen_at": "2026-07-22T06:33:52.932425+00:00",
+  "git_sha": "21273dfb3e061b60a2ef891aa471411aaecb3999",
+  "author": "rahul"
+}

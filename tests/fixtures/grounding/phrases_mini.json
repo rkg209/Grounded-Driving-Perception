@@ -1,0 +1,69 @@
+{
+  "is_synthetic": true,
+  "phrases": [
+    {
+      "image_id": 0,
+      "phrase": "the pedestrian near the curb",
+      "qualifier_type": "spatial",
+      "target_ann_id": 0,
+      "author": "rahul",
+      "date": "2026-07-22"
+    },
+    {
+      "image_id": 0,
+      "phrase": "the rider behind the pedestrian",
+      "qualifier_type": "relational",
+      "target_ann_id": 1,
+      "author": "rahul",
+      "date": "2026-07-22"
+    },
+    {
+      "image_id": 0,
+      "phrase": "the small car",
+      "qualifier_type": "attribute",
+      "target_ann_id": 2,
+      "author": "rahul",
+      "date": "2026-07-22"
+    },
+    {
+      "image_id": 0,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "absent_class": "bus",
+      "author": "rahul",
+      "date": "2026-07-22"
+    },
+    {
+      "image_id": 1,
+      "phrase": "the truck in the right lane",
+      "qualifier_type": "spatial",
+      "target_ann_id": 3,
+      "author": "rahul",
+      "date": "2026-07-22"
+    },
+    {
+      "image_id": 1,
+      "phrase": "the bus next to the truck",
+      "qualifier_type": "relational",
+      "target_ann_id": 4,
+      "author": "rahul",
+      "date": "2026-07-22"
+    },
+    {
+      "image_id": 1,
+      "phrase": "the long train",
+      "qualifier_type": "attribute",
+      "target_ann_id": 5,
+      "author": "rahul",
+      "date": "2026-07-22"
+    },
+    {
+      "image_id": 2,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "absent_class": "pedestrian",
+      "author": "rahul",
+      "date": "2026-07-22"
+    }
+  ]
+}

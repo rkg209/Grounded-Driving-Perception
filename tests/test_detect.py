@@ -99,6 +99,7 @@ def detector():
         pytest.skip(f"grounding-dino-tiny unavailable (no cache, no network): {exc}")
 
 
+@pytest.mark.model_heavy
 def test_detector_prompt_spans_round_trip_against_processors_own_tokenizer(detector):
     """Design decision 1's critical alignment guard: PromptSpans must be built with the
     processor's own tokenizer, and every class must round-trip against it at construction."""
@@ -108,5 +109,6 @@ def test_detector_prompt_spans_round_trip_against_processors_own_tokenizer(detec
         )
 
 
+@pytest.mark.model_heavy
 def test_detector_prompt_matches_config_prompt_format(detector):
     assert detector.prompt == DetectorConfig().prompt(list(BDD100K_CLASSES))

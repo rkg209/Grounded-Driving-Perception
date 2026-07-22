@@ -70,6 +70,19 @@ def test_missing_config_file_raises():
             lambda c: setattr(c.training, "overfit_loss_target", -1.0),
             "training.overfit_loss_target must be positive",
         ),
+        (
+            lambda c: setattr(c.grounding, "iou_threshold", 1.5),
+            "grounding.iou_threshold must be in",
+        ),
+        (lambda c: setattr(c.grounding, "num_frames", 0), "grounding.num_frames must be positive"),
+        (
+            lambda c: setattr(c.grounding, "min_phrases", 0),
+            "grounding.min_phrases must be positive",
+        ),
+        (
+            lambda c: setattr(c.grounding, "qualifier_types", []),
+            "grounding.qualifier_types must not be empty",
+        ),
     ],
 )
 def test_validation_rejects_bad_values(mutate, match):
@@ -84,6 +97,13 @@ def test_train_detector_overlay_only_changes_training():
     assert cfg.training.lr == 1e-4
     assert cfg.training.overfit_images == 20
     assert cfg.detector.model_id == "IDEA-Research/grounding-dino-tiny"
+
+
+def test_grounding_eval_overlay_loads():
+    cfg = load_config("configs/default.yaml", "configs/grounding_eval.yaml")
+    assert cfg.grounding.iou_threshold == 0.5
+    assert cfg.grounding.min_phrases == 150
+    assert cfg.grounding.qualifier_types == ["spatial", "attribute", "relational", "negative"]
 
 
 def test_detector_prompt_format():

@@ -147,6 +147,38 @@ class TrainingConfig:
 
 
 @dataclass
+class GroundingConfig:
+    """Spec 04 — the self-built grounding evaluation set. A named H9 exception (CLAUDE.md §2):
+    permitted only because its construction, bias, and drop rate are documented and it is
+    labelled self-built everywhere it appears."""
+
+    iou_threshold: float = 0.5
+    num_frames: int = 60
+    min_phrases: int = 150
+    qualifier_types: list[str] = field(
+        default_factory=lambda: ["spatial", "attribute", "relational", "negative"]
+    )
+    phrases_path: str = "data/grounding_eval/phrases.json"
+    overlays_dir: str = "data/grounding_eval/overlays"
+
+    def phrases_path_resolved(self) -> Path:
+        return resolve(self.phrases_path)
+
+    def overlays_dir_resolved(self) -> Path:
+        return resolve(self.overlays_dir)
+
+    def validate(self) -> None:
+        if not 0.0 <= self.iou_threshold <= 1.0:
+            raise ValueError(f"grounding.iou_threshold must be in [0, 1], got {self.iou_threshold}")
+        if self.num_frames <= 0:
+            raise ValueError(f"grounding.num_frames must be positive, got {self.num_frames}")
+        if self.min_phrases <= 0:
+            raise ValueError(f"grounding.min_phrases must be positive, got {self.min_phrases}")
+        if not self.qualifier_types:
+            raise ValueError("grounding.qualifier_types must not be empty")
+
+
+@dataclass
 class VLMConfig:
     """Stage 2 — driving-scene VQA. Separate model from the detector (H6)."""
 
@@ -165,6 +197,7 @@ class Config:
     detector: DetectorConfig = field(default_factory=DetectorConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     vlm: VLMConfig = field(default_factory=VLMConfig)
+    grounding: GroundingConfig = field(default_factory=GroundingConfig)
 
     def validate(self) -> Config:
         if self.device not in VALID_DEVICES:
@@ -191,6 +224,7 @@ class Config:
         if self.vlm.max_new_tokens <= 0:
             raise ValueError("vlm.max_new_tokens must be positive")
         self.training.validate()
+        self.grounding.validate()
         return self
 
 

@@ -36,6 +36,7 @@ def test_load_probe_images_builds_samples_with_no_ground_truth():
         assert sample.width > 0 and sample.height > 0
 
 
+@pytest.mark.model_heavy
 def test_run_probe_writes_demo_stamped_json_with_no_accuracy_field(tmp_path):
     """H9: no capability outside the evaluated set gets an accuracy number — ever."""
     detector_config = DetectorConfig(box_threshold=0.15)
@@ -64,6 +65,7 @@ def test_run_probe_writes_demo_stamped_json_with_no_accuracy_field(tmp_path):
     assert reloaded["is_demo"] is True
 
 
+@pytest.mark.model_heavy
 def test_run_probe_saves_a_crop_per_detection(tmp_path):
     detector_config = DetectorConfig(box_threshold=0.01)
     samples = load_probe_images(FIXTURE_ROOT, limit=1)

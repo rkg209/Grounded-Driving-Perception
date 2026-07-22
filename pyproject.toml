@@ -40,4 +40,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not model_heavy'"
+markers = [
+    "model_heavy: loads a real HF model (grounding-dino-tiny or larger) — deselected by default; run with `-m model_heavy` or `-m ''`",
+]

@@ -1,0 +1,14 @@
+# Spec 04 — curated grounding evaluation set. Overlay onto configs/default.yaml, e.g.:
+#   uv run gdp info -c configs/default.yaml -c configs/grounding_eval.yaml
+
+grounding:
+  iou_threshold: 0.5
+  num_frames: 60
+  min_phrases: 150
+  qualifier_types:
+    - spatial
+    - attribute
+    - relational
+    - negative
+  phrases_path: data/grounding_eval/phrases.json
+  overlays_dir: data/grounding_eval/overlays

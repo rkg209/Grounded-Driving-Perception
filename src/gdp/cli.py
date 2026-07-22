@@ -28,6 +28,21 @@ from gdp.eval.compare import build_comparison, load_metrics, write_comparison
 from gdp.eval.metrics_io import build_metrics, write_metrics
 from gdp.eval.operating_point import GtBox, PredBox, match_operating_point, sweep_threshold
 from gdp.eval.qualitative import find_miss_to_hit_pairs, save_pair_crops
+from gdp.ground.compare import (
+    build_grounding_comparison,
+    load_grounding_metrics,
+    write_grounding_comparison,
+)
+from gdp.ground.evaluate import (
+    aggregate_results,
+    build_grounding_metrics,
+    score_phrase_set,
+    write_grounding_metrics,
+    write_per_phrase,
+)
+from gdp.ground.phrases import assert_frozen, ensure_valid, load_phrases, validate_phrases
+from gdp.ground.phrases import freeze as freeze_phrases
+from gdp.ground.sample import sample_and_render
 from gdp.logging import get_logger
 from gdp.paths import repo_root, resolve, run_dir
 from gdp.probe.openvocab import load_probe_images, load_probe_phrases, run_probe, write_probe_result
@@ -53,6 +68,14 @@ train_app = typer.Typer(
     name="train",
     help="Fine-tune a pretrained backbone (spec 03) — adaptation, never training from scratch "
     "(H1).",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+ground_app = typer.Typer(
+    name="ground",
+    help="Spec 04 — curate and score the self-built grounding phrase set (H9's sanctioned "
+    "exception).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -688,6 +711,265 @@ def probe_openvocab(
     )
 
 
+def _grounding_annotations(cfg: Config, dataset: str) -> Path:
+    """Grounding curation always reads val — the split every phrase's `target_ann_id` refers to."""
+    annotations, _ = _detect_dataset_paths(cfg, dataset, "val")
+    return annotations
+
+
+@ground_app.command("sample-frames")
+def ground_sample_frames(
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+    n: Annotated[
+        int | None,
+        typer.Option("--n", help="Frames to sample; defaults to grounding.num_frames."),
+    ] = None,
+) -> None:
+    """Seeded frame sample + numbered GT overlays (design decision 5) -> `data/grounding_eval/`.
+
+    Frames are sampled *before* any phrase is written — `frames.json`'s `sampled_at` timestamp is
+    the evidence that held-out discipline (acceptance 5) was followed, not merely claimed.
+    """
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+
+    cfg = _load(config)
+    annotations, images_root = _detect_dataset_paths(cfg, dataset, "val")
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+
+    ds = load_dataset(annotations, images_root)
+    num_frames = n if n is not None else cfg.grounding.num_frames
+    overlays_dir = cfg.grounding.overlays_dir_resolved()
+    frames_json_path = overlays_dir.parent / "frames.json"
+
+    frame_sample, overlay_paths = sample_and_render(
+        ds,
+        annotations,
+        n=num_frames,
+        seed=cfg.seed,
+        frames_json_path=frames_json_path,
+        overlays_dir=overlays_dir,
+    )
+    typer.echo(
+        f"{dataset}: sampled {len(frame_sample.image_ids)} frames (seed={frame_sample.seed}) "
+        f"-> {frames_json_path}; {len(overlay_paths)} overlays -> {overlays_dir}"
+    )
+
+
+@ground_app.command("validate")
+def ground_validate(
+    phrases: Annotated[str, typer.Option("--phrases", help="Path to a phrases.json to validate.")],
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+) -> None:
+    """Every mechanical check this spec's honesty depends on (task 2): orphan `target_ann_id`,
+    false negatives, missing qualifier-type coverage, the token-span round-trip. Ambiguous
+    near-duplicate targets (design decision 4) are printed as warnings, not errors."""
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+
+    cfg = _load(config)
+    annotations = _grounding_annotations(cfg, dataset)
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+
+    phrase_set = load_phrases(phrases)
+    result = validate_phrases(
+        phrase_set,
+        annotations,
+        min_phrases=cfg.grounding.min_phrases,
+        qualifier_types=tuple(cfg.grounding.qualifier_types),
+    )
+    for warning in result.ambiguous:
+        typer.secho(f"AMBIGUOUS: {warning}", fg=typer.colors.YELLOW, err=True)
+    if not result.ok:
+        for error in result.errors:
+            typer.secho(f"ERROR: {error}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"{phrases}: {len(phrase_set)} phrases valid {result.type_counts}")
+
+
+@ground_app.command("freeze")
+def ground_freeze(
+    phrases: Annotated[str, typer.Option("--phrases", help="Path to the phrases.json to freeze.")],
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+    author: Annotated[
+        str, typer.Option("--author", help="Who authored this phrase set.")
+    ] = "rahul",
+) -> None:
+    """Validate, then hash-freeze `phrases.json` -> `<stem>.lock.json` (design decision 6).
+
+    `gdp ground evaluate` refuses to run against a `phrases.json` that no longer hashes to this
+    lock — the mechanical half of "no phrase was edited after seeing a prediction" (acceptance 5).
+    """
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+
+    cfg = _load(config)
+    annotations = _grounding_annotations(cfg, dataset)
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+
+    phrase_set = load_phrases(phrases)
+    result = validate_phrases(
+        phrase_set,
+        annotations,
+        min_phrases=cfg.grounding.min_phrases,
+        qualifier_types=tuple(cfg.grounding.qualifier_types),
+    )
+    try:
+        ensure_valid(result)
+    except ValueError as exc:
+        _die(str(exc))
+
+    phrases_path = resolve(phrases)
+    lock_path = phrases_path.with_name(f"{phrases_path.stem}.lock.json")
+    lock = freeze_phrases(phrases_path, lock_path=lock_path, author=author)
+    typer.echo(
+        f"froze {lock['num_phrases']} phrases {lock['per_type_counts']} "
+        f"(sha256={lock['sha256'][:12]}...) -> {lock_path}"
+    )
+
+
+@ground_app.command("evaluate")
+def ground_evaluate(
+    config: ConfigOpt = None,
+    dataset: Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")] = "mini_bdd",
+    phrases: Annotated[
+        str | None,
+        typer.Option("--phrases", help="Path to a frozen phrases.json; defaults to config."),
+    ] = None,
+    box_threshold: Annotated[
+        float | None,
+        typer.Option(
+            "--box-threshold",
+            help="Operating threshold, replayed from spec 02's train sweep (design decision 7) "
+            "— never tuned on this set. Defaults to detector.box_threshold.",
+        ),
+    ] = None,
+    chosen_on: Annotated[
+        str | None,
+        typer.Option(
+            "--chosen-on",
+            help="Attest --box-threshold came from a train-split sweep. Only accepts 'train'; "
+            "requires --box-threshold.",
+        ),
+    ] = None,
+    checkpoint: Annotated[
+        str | None,
+        typer.Option("--checkpoint", help="Local checkpoint dir overriding detector.model_id."),
+    ] = None,
+) -> None:
+    """Score a frozen phrase set: grounding accuracy per qualifier type (spec § Approach, H8/H9).
+
+    Refuses to run unless `phrases.json` still hashes to its `<stem>.lock.json` (design decision
+    6). Writes `runs/04-grounding/<timestamp>/metrics.json` (stamped `is_self_built_benchmark`,
+    `is_synthetic`, `phrases_sha256`, `chosen_on`) and `per_phrase.json` (every phrase's outcome,
+    for H7 failure inspection). Loads one `GroundingDinoDetector` for the whole run — never one per
+    phrase (CLAUDE.md §4's memory-hygiene rule).
+    """
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+    if chosen_on is not None and chosen_on != "train":
+        _die("--chosen-on only accepts 'train' (attesting the threshold came from a train sweep)")
+    if chosen_on is not None and box_threshold is None:
+        _die("--chosen-on requires --box-threshold — it labels where that value came from")
+
+    cfg = _load(config)
+    phrases_path = resolve(phrases or cfg.grounding.phrases_path)
+    if not phrases_path.is_file():
+        _die(f"phrases not found: {phrases_path}")
+    lock_path = phrases_path.with_name(f"{phrases_path.stem}.lock.json")
+    try:
+        lock = assert_frozen(phrases_path, lock_path)
+    except RuntimeError as exc:
+        _die(str(exc))
+
+    annotations = _grounding_annotations(cfg, dataset)
+    _, images_root = _detect_dataset_paths(cfg, dataset, "val")
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+
+    if checkpoint is not None:
+        cfg.detector.model_id = checkpoint
+    set_seed(cfg.seed)
+
+    ds = load_dataset(annotations, images_root)
+    phrase_set = load_phrases(phrases_path)
+
+    threshold = cfg.detector.box_threshold if box_threshold is None else box_threshold
+    if box_threshold is None:
+        resolved_chosen_on = "config_default"
+    else:
+        resolved_chosen_on = chosen_on or "cli_override"
+
+    detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
+    results = score_phrase_set(
+        detector,
+        ds,
+        phrase_set,
+        annotations,
+        box_threshold=threshold,
+        iou_threshold=cfg.grounding.iou_threshold,
+    )
+    aggregates = aggregate_results(results)
+    metrics = build_grounding_metrics(
+        aggregates=aggregates,
+        lock=lock,
+        box_threshold=threshold,
+        chosen_on=resolved_chosen_on,
+        iou_threshold=cfg.grounding.iou_threshold,
+        cfg=cfg,
+        dataset=dataset,
+        is_synthetic=(dataset == "mini_bdd"),
+    )
+
+    out_dir = run_dir("04-grounding")
+    metrics_path = write_grounding_metrics(metrics, out_dir=out_dir)
+    per_phrase_path = write_per_phrase(results, out_dir=out_dir)
+    overall = aggregates["overall"]
+    typer.echo(
+        f"{dataset}: {overall['n']} phrases, accuracy={overall['accuracy']:.3f} "
+        f"(threshold={threshold}, self-built set — H9) -> {metrics_path}, {per_phrase_path}"
+    )
+
+
+@ground_app.command("compare")
+def ground_compare(
+    zeroshot: Annotated[
+        str, typer.Option("--zeroshot", help="Path to the zero-shot grounding metrics.json.")
+    ],
+    finetuned: Annotated[
+        str, typer.Option("--finetuned", help="Path to the fine-tuned grounding metrics.json.")
+    ],
+) -> None:
+    """The zero-shot -> fine-tuned grounding-accuracy delta (design decision 9, H8).
+
+    Writes `runs/04-grounding/<timestamp>/grounding_comparison.json`: overall and per-type
+    accuracy before/after/delta, a `regressions` list, and the H9 `is_self_built_benchmark`/
+    `caveat` labels. Refuses to emit unless both inputs share `phrases_sha256`, `num_phrases`, and
+    `box_threshold` — the fine-tuned grounding number never exists in a file without the zero-shot
+    one at its side.
+    """
+    zeroshot_metrics = load_grounding_metrics(zeroshot)
+    finetuned_metrics = load_grounding_metrics(finetuned)
+    try:
+        result = build_grounding_comparison(zeroshot_metrics, finetuned_metrics)
+    except ValueError as exc:
+        _die(str(exc))
+
+    out_dir = run_dir("04-grounding")
+    comparison_path = write_grounding_comparison(result, out_dir=out_dir)
+    typer.echo(
+        f"grounding accuracy: {result['accuracy_zeroshot']:.3f} -> "
+        f"{result['accuracy_finetuned']:.3f} (delta {result['accuracy_delta']:+.3f}); "
+        f"regressions: {result['regressions']} -> {comparison_path}"
+    )
+
+
 @app.command()
 def deploy(config: ConfigOpt = None) -> None:
     """Quantize, export to ONNX, and benchmark latency/FPS (Stage 1 deployment)."""
@@ -708,6 +990,7 @@ def demo(config: ConfigOpt = None) -> None:
 
 app.add_typer(data_app, name="data")
 app.add_typer(train_app, name="train")
+app.add_typer(ground_app, name="ground")
 
 
 if __name__ == "__main__":
