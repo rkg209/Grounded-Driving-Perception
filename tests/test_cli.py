@@ -26,7 +26,6 @@ runner = CliRunner()
 
 # command → the spec that will implement it
 PENDING = {
-    "deploy": "05-deploy-onnx-edge",
     "vqa": "07-finetune-vlm",
     "demo": "09-integrated-demo",
 }
@@ -35,8 +34,15 @@ PENDING = {
 def test_help_lists_the_whole_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ["info", "data", "detect", "evaluate", "train", *PENDING]:
+    for command in ["info", "data", "detect", "evaluate", "train", "deploy", *PENDING]:
         assert command in result.stdout
+
+
+def test_deploy_help_lists_its_subcommands():
+    result = runner.invoke(app, ["deploy", "--help"])
+    assert result.exit_code == 0
+    for subcommand in ["export", "quantize", "bench", "evaluate-variants"]:
+        assert subcommand in result.stdout
 
 
 def test_info_is_implemented_and_reports_the_environment():

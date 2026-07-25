@@ -38,6 +38,10 @@ illustration.
 - **Not pretrained from scratch.** Pretrained backbones are adapted; the domain gain is measured.
 - **Not deployed in a vehicle.** "Edge-deployed" means quantized, ONNX-exported, and
   latency-benchmarked on edge-class compute. Nothing here has been near a car.
+- **The ONNX export is fixed-vocabulary, not open-vocabulary.** Exporting requires freezing the
+  text prompt to the 10 BDD classes; the exported artifact answers only those classes, not
+  arbitrary natural-language queries. The open-vocabulary path stays in PyTorch — a deliberate
+  export tradeoff, stated in `metrics.json` as `fixed_prompt: true`, not a silent regression.
 - **No LiDAR, radar, or sensor fusion.** Camera-only.
 - **No tracking, no trajectory prediction, no planning or control.** Single-frame perception and
   scene understanding; the rest of the AD stack is downstream and deliberately out of scope.

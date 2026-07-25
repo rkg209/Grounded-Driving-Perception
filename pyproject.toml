@@ -5,7 +5,11 @@ description = "Grounded Driving Perception — open-vocabulary detection + drivi
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "matplotlib>=3.9",
     "numpy>=1.26",
+    "onnx>=1.16",
+    "onnxruntime>=1.19",
+    "onnxscript>=0.1",
     "pillow>=10.0",
     "pycocotools>=2.0.7",
     "pyyaml>=6.0",

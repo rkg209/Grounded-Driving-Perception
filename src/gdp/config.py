@@ -188,6 +188,32 @@ class VLMConfig:
     lora_alpha: int = 32
 
 
+VALID_QUANTIZATION = ("dynamic", "static")
+
+
+@dataclass
+class DeployConfig:
+    """Spec 05 — ONNX export, quantization, and latency benchmarking on the M4 (the edge target)."""
+
+    warmup_iters: int = 50
+    timed_iters: int = 200
+    quantization: str = "dynamic"
+    onnx_opset: int = 17
+
+    def validate(self) -> None:
+        if self.warmup_iters <= 0:
+            raise ValueError(f"deploy.warmup_iters must be positive, got {self.warmup_iters}")
+        if self.timed_iters <= 0:
+            raise ValueError(f"deploy.timed_iters must be positive, got {self.timed_iters}")
+        if self.quantization not in VALID_QUANTIZATION:
+            raise ValueError(
+                f"deploy.quantization must be one of {VALID_QUANTIZATION}, "
+                f"got {self.quantization!r}"
+            )
+        if self.onnx_opset <= 0:
+            raise ValueError(f"deploy.onnx_opset must be positive, got {self.onnx_opset}")
+
+
 @dataclass
 class Config:
     seed: int = 42
@@ -198,6 +224,7 @@ class Config:
     training: TrainingConfig = field(default_factory=TrainingConfig)
     vlm: VLMConfig = field(default_factory=VLMConfig)
     grounding: GroundingConfig = field(default_factory=GroundingConfig)
+    deploy: DeployConfig = field(default_factory=DeployConfig)
 
     def validate(self) -> Config:
         if self.device not in VALID_DEVICES:
@@ -225,6 +252,7 @@ class Config:
             raise ValueError("vlm.max_new_tokens must be positive")
         self.training.validate()
         self.grounding.validate()
+        self.deploy.validate()
         return self
 
 

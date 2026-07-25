@@ -83,6 +83,22 @@ def test_missing_config_file_raises():
             lambda c: setattr(c.grounding, "qualifier_types", []),
             "grounding.qualifier_types must not be empty",
         ),
+        (
+            lambda c: setattr(c.deploy, "warmup_iters", 0),
+            "deploy.warmup_iters must be positive",
+        ),
+        (
+            lambda c: setattr(c.deploy, "timed_iters", 0),
+            "deploy.timed_iters must be positive",
+        ),
+        (
+            lambda c: setattr(c.deploy, "quantization", "int4"),
+            "deploy.quantization must be one of",
+        ),
+        (
+            lambda c: setattr(c.deploy, "onnx_opset", 0),
+            "deploy.onnx_opset must be positive",
+        ),
     ],
 )
 def test_validation_rejects_bad_values(mutate, match):
@@ -104,6 +120,15 @@ def test_grounding_eval_overlay_loads():
     assert cfg.grounding.iou_threshold == 0.5
     assert cfg.grounding.min_phrases == 150
     assert cfg.grounding.qualifier_types == ["spatial", "attribute", "relational", "negative"]
+
+
+def test_deploy_overlay_loads():
+    cfg = load_config("configs/default.yaml", "configs/deploy.yaml")
+    assert cfg.deploy.warmup_iters == 50
+    assert cfg.deploy.timed_iters == 200
+    assert cfg.deploy.quantization == "dynamic"
+    assert cfg.deploy.onnx_opset == 17
+    assert cfg.detector.model_id == "IDEA-Research/grounding-dino-tiny"
 
 
 def test_detector_prompt_format():

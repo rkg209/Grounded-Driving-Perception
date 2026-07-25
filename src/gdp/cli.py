@@ -21,6 +21,13 @@ from gdp.config import Config, load_config
 from gdp.data.bdd100k import DEFAULT_IMAGE_HEIGHT, DEFAULT_IMAGE_WIDTH, convert_bdd_to_coco
 from gdp.data.core import load_dataset
 from gdp.data.stats import build_stats, write_stats
+from gdp.deploy.bench import collect_hardware_info, run_interleaved
+from gdp.deploy.curve import VariantPoint, plot_accuracy_vs_latency
+from gdp.deploy.evaluate import evaluate_variant
+from gdp.deploy.export import INPUT_NAMES, OUTPUT_NAMES, ExportResult, export_to_onnx
+from gdp.deploy.metrics import build_deploy_metrics, write_deploy_metrics, write_latency
+from gdp.deploy.onnx_detector import OnnxDetector
+from gdp.deploy.quantize import quantize_dynamic_int8
 from gdp.detect.detector import GroundingDinoDetector
 from gdp.detect.predictions import (
     read_evaluated_image_ids,
@@ -80,6 +87,14 @@ ground_app = typer.Typer(
     name="ground",
     help="Spec 04 — curate and score the self-built grounding phrase set (H9's sanctioned "
     "exception).",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+deploy_app = typer.Typer(
+    name="deploy",
+    help="Spec 05 — export to ONNX, quantize to INT8, and benchmark accuracy-vs-latency on the "
+    "M4 (the edge target itself, H3).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -1013,10 +1028,253 @@ def ground_compare(
     )
 
 
-@app.command()
-def deploy(config: ConfigOpt = None) -> None:
-    """Quantize, export to ONNX, and benchmark latency/FPS (Stage 1 deployment)."""
-    _pending("05-deploy-onnx-edge", "ONNX export + INT8 + latency benchmark")
+def _latest_deploy_run_dir(run_spec: str = "05-deploy") -> Path | None:
+    runs_dir = resolve(f"runs/{run_spec}")
+    if not runs_dir.is_dir():
+        return None
+    candidates = [d for d in runs_dir.iterdir() if d.is_dir() and (d / "model.onnx").is_file()]
+    return max(candidates, key=lambda p: p.stat().st_mtime) if candidates else None
+
+
+def _validate_deploy_dataset_split(dataset: str, split: str) -> None:
+    if dataset not in _VALID_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DATASETS}")
+    if split not in ("train", "val"):
+        _die(f"unknown --split {split!r}; expected 'train' or 'val'")
+    if dataset == "mini_bdd" and split != "val":
+        _die("the mini_bdd fixture only provides a 'val' split")
+
+
+DeployDatasetOpt = Annotated[str, typer.Option("--dataset", help="bdd100k or mini_bdd")]
+DeploySplitOpt = Annotated[str, typer.Option("--split", help="train or val")]
+DeployRunSpecOpt = Annotated[
+    str, typer.Option("--run-spec", help="Which runs/<spec>/ directory this pipeline writes under.")
+]
+
+
+@deploy_app.command("export")
+def deploy_export(
+    config: ConfigOpt = None,
+    dataset: DeployDatasetOpt = "mini_bdd",
+    split: DeploySplitOpt = "val",
+    checkpoint: Annotated[
+        str | None,
+        typer.Option(
+            "--checkpoint",
+            help="Local fine-tuned checkpoint dir overriding detector.model_id (spec 03).",
+        ),
+    ] = None,
+    run_spec: DeployRunSpecOpt = "05-deploy",
+) -> None:
+    """Export the detector to ONNX, frozen to the 10-class prompt (H3: not open-vocabulary).
+
+    Writes `runs/<run-spec>/<timestamp>/model.onnx` and an `export_result.json` sidecar
+    (`fixed_prompt`, `export_path`, `prompt`) that `quantize`/`bench`/`evaluate-variants` read
+    back — the fixed-prompt limitation travels with the artifact, not just in this command's
+    stdout.
+    """
+    _validate_deploy_dataset_split(dataset, split)
+
+    cfg = _load(config)
+    if checkpoint is not None:
+        cfg.detector.model_id = checkpoint
+    set_seed(cfg.seed)
+
+    annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
+    if not annotations.is_file():
+        _die(f"annotations not found: {annotations}")
+    ds = load_dataset(annotations, images_root)
+
+    detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
+    out_dir = run_dir(run_spec)
+    export_result = export_to_onnx(
+        detector, ds.samples[0], out_dir / "model.onnx", opset=cfg.deploy.onnx_opset
+    )
+
+    (out_dir / "export_result.json").write_text(
+        json.dumps(
+            {
+                "onnx_path": str(export_result.onnx_path),
+                "export_path": export_result.export_path,
+                "fixed_prompt": export_result.fixed_prompt,
+                "prompt": export_result.prompt,
+                "opset": export_result.opset,
+                "dataset": dataset,
+                "split": split,
+                "num_images": len(ds.samples),
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    typer.echo(
+        f"exported {export_result.onnx_path} (export_path={export_result.export_path}, "
+        f"fixed_prompt={export_result.fixed_prompt}) -> {out_dir}"
+    )
+
+
+@deploy_app.command("quantize")
+def deploy_quantize(config: ConfigOpt = None, run_spec: DeployRunSpecOpt = "05-deploy") -> None:
+    """Dynamic INT8 quantization of the most recent `gdp deploy export` output."""
+    cfg = _load(config)
+    if cfg.deploy.quantization != "dynamic":
+        _die(
+            f"deploy.quantization={cfg.deploy.quantization!r} is not implemented — only "
+            "'dynamic' is (static INT8 is a documented fallback, not yet built; plan decision 5)"
+        )
+
+    out_dir = _latest_deploy_run_dir(run_spec)
+    if out_dir is None:
+        _die("no exported model.onnx found — run `gdp deploy export` first")
+
+    result = quantize_dynamic_int8(out_dir / "model.onnx", out_dir / "model.int8.onnx")
+    typer.echo(
+        f"quantized {result.onnx_path} "
+        f"({result.fp32_size_bytes} -> {result.int8_size_bytes} bytes) -> {out_dir}"
+    )
+
+
+@deploy_app.command("bench")
+def deploy_bench(
+    config: ConfigOpt = None,
+    dataset: DeployDatasetOpt = "mini_bdd",
+    split: DeploySplitOpt = "val",
+    run_spec: DeployRunSpecOpt = "05-deploy",
+) -> None:
+    """Interleaved p50/p95/p99/FPS + peak RSS for all three variants (design decision 6).
+
+    Requires `gdp deploy export` and `gdp deploy quantize` to have already run into the same
+    (most recent) `runs/<run-spec>/<timestamp>/` directory.
+    """
+    _validate_deploy_dataset_split(dataset, split)
+
+    cfg = _load(config)
+    out_dir = _latest_deploy_run_dir(run_spec)
+    if out_dir is None:
+        _die("no exported model.onnx found — run `gdp deploy export` first")
+    int8_path = out_dir / "model.int8.onnx"
+    if not int8_path.is_file():
+        _die("no quantized model.int8.onnx found — run `gdp deploy quantize` first")
+
+    annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
+    ds = load_dataset(annotations, images_root)
+    sample = ds.samples[0]
+    box_threshold = cfg.detector.box_threshold
+
+    pt_detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
+    fp32_onnx_detector = OnnxDetector(out_dir / "model.onnx", cfg.detector, cfg.dataset.classes)
+    int8_onnx_detector = OnnxDetector(int8_path, cfg.detector, cfg.dataset.classes)
+
+    callables = {
+        "fp32-pt": lambda: pt_detector.detect_images([sample], box_threshold=box_threshold),
+        "fp32-onnx": lambda: fp32_onnx_detector.detect_images(
+            [sample], box_threshold=box_threshold
+        ),
+        "int8-onnx": lambda: int8_onnx_detector.detect_images(
+            [sample], box_threshold=box_threshold
+        ),
+    }
+    results = run_interleaved(
+        callables, warmup=cfg.deploy.warmup_iters, iters=cfg.deploy.timed_iters
+    )
+    hardware = collect_hardware_info(batch_size=1, image_size=(sample.height, sample.width))
+    latency_path = write_latency(results, hardware=hardware, out_dir=out_dir)
+
+    summary = ", ".join(
+        f"{name} p50={r.p50 * 1000:.1f}ms fps={r.fps:.1f}" for name, r in results.items()
+    )
+    typer.echo(f"latency: {summary} -> {latency_path}")
+
+
+@deploy_app.command("evaluate-variants")
+def deploy_evaluate_variants(
+    config: ConfigOpt = None,
+    dataset: DeployDatasetOpt = "mini_bdd",
+    split: DeploySplitOpt = "val",
+    run_spec: DeployRunSpecOpt = "05-deploy",
+) -> None:
+    """mAP for all three variants + `curve.png` (H8: never a latency number without its accuracy).
+
+    Requires `gdp deploy export` and `gdp deploy quantize` to have already run. If `gdp deploy
+    bench` has also run, `curve.png` is produced from its `latency.json`; otherwise only
+    `metrics.json` is written and a warning is printed.
+    """
+    _validate_deploy_dataset_split(dataset, split)
+
+    cfg = _load(config)
+    out_dir = _latest_deploy_run_dir(run_spec)
+    if out_dir is None:
+        _die("no exported model.onnx found — run `gdp deploy export` first")
+    int8_path = out_dir / "model.int8.onnx"
+    if not int8_path.is_file():
+        _die("no quantized model.int8.onnx found — run `gdp deploy quantize` first")
+    export_meta_path = out_dir / "export_result.json"
+    if not export_meta_path.is_file():
+        _die("no export_result.json found — run `gdp deploy export` first")
+    export_meta = json.loads(export_meta_path.read_text())
+
+    annotations, images_root = _detect_dataset_paths(cfg, dataset, split)
+    ds = load_dataset(annotations, images_root)
+    box_threshold = cfg.detector.box_threshold
+
+    pt_detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
+    fp32_onnx_detector = OnnxDetector(out_dir / "model.onnx", cfg.detector, cfg.dataset.classes)
+    int8_onnx_detector = OnnxDetector(int8_path, cfg.detector, cfg.dataset.classes)
+    variant_detectors = {
+        "fp32-pt": pt_detector,
+        "fp32-onnx": fp32_onnx_detector,
+        "int8-onnx": int8_onnx_detector,
+    }
+    variant_results = {
+        name: evaluate_variant(
+            det,
+            ds.samples,
+            gt_path=annotations,
+            box_threshold=box_threshold,
+            out_dir=out_dir,
+            variant=name,
+        )
+        for name, det in variant_detectors.items()
+    }
+
+    export_result = ExportResult(
+        onnx_path=Path(export_meta["onnx_path"]),
+        export_path=export_meta["export_path"],
+        fixed_prompt=export_meta["fixed_prompt"],
+        prompt=export_meta["prompt"],
+        opset=export_meta["opset"],
+        input_names=INPUT_NAMES,
+        output_names=OUTPUT_NAMES,
+    )
+    metrics = build_deploy_metrics(
+        cfg=cfg,
+        export_result=export_result,
+        quantization=cfg.deploy.quantization,
+        variant_results=variant_results,
+        dataset=dataset,
+        num_images=len(ds.samples),
+        is_synthetic=(dataset == "mini_bdd"),
+    )
+    metrics_path = write_deploy_metrics(metrics, out_dir=out_dir)
+
+    latency_path = out_dir / "latency.json"
+    if latency_path.is_file():
+        latency = json.loads(latency_path.read_text())
+        points = {
+            name: VariantPoint(map=variant_results[name].map, p50=latency["variants"][name]["p50"])
+            for name in variant_detectors
+        }
+        curve_path = plot_accuracy_vs_latency(points, out_dir / "curve.png")
+        typer.echo(f"curve -> {curve_path}")
+    else:
+        typer.secho(
+            "no latency.json found — run `gdp deploy bench` first for curve.png",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+
+    summary = ", ".join(f"{name}={r.map:.3f}" for name, r in variant_results.items())
+    typer.echo(f"mAP: {summary} -> {metrics_path}")
 
 
 @app.command()
@@ -1034,6 +1292,7 @@ def demo(config: ConfigOpt = None) -> None:
 app.add_typer(data_app, name="data")
 app.add_typer(train_app, name="train")
 app.add_typer(ground_app, name="ground")
+app.add_typer(deploy_app, name="deploy")
 
 
 if __name__ == "__main__":

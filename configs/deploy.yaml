@@ -1,0 +1,8 @@
+# Spec 05 — ONNX export, quantization, latency benchmarking. Overlay onto configs/default.yaml, e.g.:
+#   uv run gdp info -c configs/default.yaml -c configs/deploy.yaml
+
+deploy:
+  warmup_iters: 50
+  timed_iters: 200
+  quantization: dynamic
+  onnx_opset: 17
