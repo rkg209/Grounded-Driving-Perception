@@ -1,0 +1,21 @@
+# Spec 09 — the integrated Gradio demo. Overlay onto configs/default.yaml, e.g.:
+#   uv run gdp demo -c configs/default.yaml -c configs/demo.yaml
+#
+# Runs entirely on the laptop against tests/fixtures/mini_bdd (CLAUDE.md §4) — no download, no
+# cluster. Every scene it shows is badged synthetic; every checkpoint it loads is badged
+# zero-shot/base (H8) until --checkpoint/--adapter point at a real fine-tuned artifact.
+
+demo:
+  scenes_dir: tests/fixtures/mini_bdd
+  detector_variant: pt
+  onnx_path: null
+  threshold_default: 0.25
+  threshold_min: 0.0
+  threshold_max: 1.0
+  report_questions:
+    - "What should the ego vehicle pay attention to in this scene?"
+    - "Is it safe for the ego vehicle to proceed?"
+  server_port: 7860
+  share: false
+  vlm_endpoint: null
+  max_report_lines: 20

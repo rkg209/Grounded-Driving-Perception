@@ -35,6 +35,12 @@ gdp = "gdp.cli:app"
 drivelm-eval = [
     "openai>=1.0",
 ]
+# Spec 09 — the integrated Gradio demo. Optional: `gdp --help` and the rest of the CLI must import
+# and run with zero download even when this group isn't installed (build_app imports gradio
+# lazily, inside the function, not at module import time).
+demo = [
+    "gradio>=4.44",
+]
 
 [dependency-groups]
 dev = [

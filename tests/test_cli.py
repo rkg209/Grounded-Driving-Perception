@@ -25,15 +25,23 @@ from gdp.paths import resolve
 runner = CliRunner()
 
 # command → the spec that will implement it
-PENDING = {
-    "demo": "09-integrated-demo",
-}
+PENDING: dict[str, str] = {}
 
 
 def test_help_lists_the_whole_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ["info", "data", "detect", "evaluate", "train", "deploy", "vqa", *PENDING]:
+    for command in [
+        "info",
+        "data",
+        "detect",
+        "evaluate",
+        "train",
+        "deploy",
+        "vqa",
+        "demo",
+        *PENDING,
+    ]:
         assert command in result.stdout
 
 

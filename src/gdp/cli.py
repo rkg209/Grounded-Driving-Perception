@@ -9,6 +9,7 @@ project has got, and nothing pretends to work before it does.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
 
@@ -1835,9 +1836,87 @@ def deploy_evaluate_variants(
 
 
 @app.command()
-def demo(config: ConfigOpt = None) -> None:
-    """Launch the integrated Gradio demo (query→boxes, question→answer)."""
-    _pending("09-integrated-demo", "integrated Gradio demo")
+def demo(
+    config: ConfigOpt = None,
+    checkpoint: Annotated[
+        str | None,
+        typer.Option(
+            "--checkpoint",
+            help="Fine-tuned detector checkpoint dir (spec 03). Defaults to cfg.detector.model_id "
+            "(zero-shot) — the UI badges whichever is actually loaded (H8).",
+        ),
+    ] = None,
+    adapter: Annotated[
+        str | None,
+        typer.Option(
+            "--adapter",
+            help="LoRA adapter dir from `gdp train vlm` (spec 07). Defaults to base Qwen2.5-VL — "
+            "the UI badges whichever is actually loaded (H8).",
+        ),
+    ] = None,
+    variant: Annotated[
+        str | None,
+        typer.Option("--variant", help="Detector variant: 'pt' or 'int8-onnx'. Overrides config."),
+    ] = None,
+    scenes: Annotated[
+        str | None,
+        typer.Option("--scenes", help="Directory of demo scene images. Overrides config."),
+    ] = None,
+    vlm_endpoint: Annotated[
+        str | None,
+        typer.Option(
+            "--vlm-endpoint",
+            help="Remote HF-Space-style endpoint for Stage 2 (decision 12). "
+            "Default: run Qwen2.5-VL locally, lazy-loaded on the first question.",
+        ),
+    ] = None,
+    port: Annotated[
+        int | None, typer.Option("--port", help="Server port. Overrides config.")
+    ] = None,
+    share: Annotated[
+        bool, typer.Option("--share", help="Create a public Gradio share link.")
+    ] = False,
+) -> None:
+    """Launch the integrated Gradio demo (query→boxes, question→answer, attributed scene report).
+
+    Two separate models, evaluated separately (H6) — see `SEPARATE_MODELS`, rendered in the UI.
+    Runs entirely on the laptop against synthetic fixture scenes by default (CLAUDE.md §4); no
+    cluster, no download, unless `--checkpoint`/`--adapter` point at real fine-tuned artifacts.
+    """
+    from gdp.demo.app import launch
+    from gdp.demo.backends import ModelRegistry
+
+    cfg = _load(config)
+    set_seed(cfg.seed)
+
+    detector_config = cfg.detector
+    if checkpoint is not None:
+        detector_config = replace(detector_config, model_id=checkpoint)
+    demo_config = cfg.demo
+    if variant is not None:
+        demo_config = replace(demo_config, detector_variant=variant)
+    if scenes is not None:
+        demo_config = replace(demo_config, scenes_dir=scenes)
+    if vlm_endpoint is not None:
+        demo_config = replace(demo_config, vlm_endpoint=vlm_endpoint)
+    if port is not None:
+        demo_config = replace(demo_config, server_port=port)
+    if share:
+        demo_config = replace(demo_config, share=True)
+    cfg = replace(cfg, detector=detector_config, demo=demo_config)
+
+    registry = ModelRegistry(cfg.detector, device=cfg.device)
+    if cfg.demo.vlm_endpoint is not None:
+        vlm = registry.get_remote_vlm(cfg.demo.vlm_endpoint)
+    else:
+        vlm = registry.get_local_vlm(
+            cfg.vlm.model_id, adapter_dir=adapter, scenes_root=cfg.demo.scenes_dir_path()
+        )
+
+    typer.echo(f"scenes: {cfg.demo.scenes_dir_path()}")
+    typer.echo(f"detector: {cfg.detector.model_id} ({cfg.demo.detector_variant})")
+    typer.echo(f"VLM backend: {vlm.badge()}")
+    launch(cfg, registry=registry, vlm=vlm, server_port=cfg.demo.server_port, share=cfg.demo.share)
 
 
 app.add_typer(data_app, name="data")

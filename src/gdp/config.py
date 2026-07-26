@@ -376,6 +376,64 @@ class DeployConfig:
 
 
 @dataclass
+class DemoConfig:
+    """Spec 09 — the integrated Gradio demo. Every value here is UI plumbing, not a model
+    weight or a metric (H7/H9): the demo composes what specs 02-08 already produced, on
+    laptop-only fixture scenes by default (CLAUDE.md §4)."""
+
+    # tests/fixtures/mini_bdd — the only real-image fixture in the repo (mini_drivelm's 64x36
+    # crops are too small to display). Every scene loaded from here is badged synthetic.
+    scenes_dir: str = "tests/fixtures/mini_bdd"
+    # "pt" (free-text capable) or "int8-onnx" (fast, taxonomy-only — spec 05's frozen-prompt
+    # export). Free-text queries always force "pt" regardless of this default (decision 4).
+    detector_variant: str = "pt"
+    onnx_path: str | None = None
+    threshold_default: float = 0.25
+    threshold_min: float = 0.0
+    threshold_max: float = 1.0
+    # Versioned so the scene report (decision 9) is reproducible — a change here is a
+    # deliberate edit to what the demo asks, not a runtime free-text field.
+    report_questions: list[str] = field(
+        default_factory=lambda: [
+            "What should the ego vehicle pay attention to in this scene?",
+            "Is it safe for the ego vehicle to proceed?",
+        ]
+    )
+    server_port: int = 7860
+    share: bool = False
+    # None = local Qwen2.5-VL; set to an HF Space URL to run Stage 2 remotely (decision 12).
+    vlm_endpoint: str | None = None
+    max_report_lines: int = 20
+
+    def scenes_dir_path(self) -> Path:
+        return resolve(self.scenes_dir)
+
+    def validate(self) -> None:
+        if self.detector_variant not in ("pt", "int8-onnx"):
+            raise ValueError(
+                f"demo.detector_variant must be one of ('pt', 'int8-onnx'), "
+                f"got {self.detector_variant!r}"
+            )
+        if not 0.0 <= self.threshold_min < self.threshold_max <= 1.0:
+            raise ValueError(
+                "demo.threshold_min must be < threshold_max, both in [0, 1], got "
+                f"min={self.threshold_min}, max={self.threshold_max}"
+            )
+        if not self.threshold_min <= self.threshold_default <= self.threshold_max:
+            raise ValueError(
+                "demo.threshold_default must be in [threshold_min, threshold_max], got "
+                f"default={self.threshold_default}, "
+                f"range=[{self.threshold_min}, {self.threshold_max}]"
+            )
+        if not self.report_questions:
+            raise ValueError("demo.report_questions must not be empty")
+        if not 0 < self.server_port < 65536:
+            raise ValueError(f"demo.server_port must be in (0, 65536), got {self.server_port}")
+        if self.max_report_lines <= 0:
+            raise ValueError(f"demo.max_report_lines must be positive, got {self.max_report_lines}")
+
+
+@dataclass
 class Config:
     seed: int = 42
     device: str = "auto"
@@ -389,6 +447,7 @@ class Config:
     drivelm: DriveLMConfig = field(default_factory=DriveLMConfig)
     vlm_training: VLMTrainingConfig = field(default_factory=VLMTrainingConfig)
     vqa_eval: VQAEvalConfig = field(default_factory=VQAEvalConfig)
+    demo: DemoConfig = field(default_factory=DemoConfig)
 
     def validate(self) -> Config:
         if self.device not in VALID_DEVICES:
@@ -419,6 +478,7 @@ class Config:
         self.drivelm.validate()
         self.vlm_training.validate()
         self.vqa_eval.validate()
+        self.demo.validate()
         return self
 
 
