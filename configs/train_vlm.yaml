@@ -1,0 +1,25 @@
+# Spec 07 — LoRA fine-tuning tunables for Qwen2.5-VL-3B. Overlay onto configs/default.yaml
+# (+ configs/drivelm.yaml for the real data), e.g.:
+#   uv run gdp train vlm -c configs/default.yaml -c configs/drivelm.yaml -c configs/train_vlm.yaml
+#
+# Every number here is a deliberate choice, not a magic constant buried in trainer.py (CLAUDE.md §8).
+# Mirrors configs/train_detector.yaml's role for Stage 1 — a separate overlay for a separate model (H6).
+
+vlm_training:
+  lr: 1.0e-4 # LoRA adapters tolerate a higher LR than full fine-tune would; frozen backbone limits blast radius
+  weight_decay: 0.0 # LoRA's low-rank update doesn't need weight decay at this subset size
+  warmup_ratio: 0.03 # short warmup — LoRA has far fewer trainable params than a full fine-tune
+  epochs: 2 # DriveLM train subset is small; more epochs on the same QA pairs risks memorizing phrasing
+  batch_size: 1 # one multi-image driving scene already fills a GPU at Qwen2.5-VL's dynamic resolution
+  grad_accum: 8 # effective batch size 8 without exceeding per-step memory (unlike spec 03, this trainer implements it)
+  max_grad_norm: 1.0 # standard clip; LoRA gradients are well-behaved but not unbounded
+  lora_dropout: 0.05 # light regularization against overfitting the small subset
+  gradient_checkpointing: true # trades compute for memory — required to fit a 3B VLM's activations
+  # Overfit-16 gate (spec 07 design decision 5, mirroring spec 03): must drive loss to near-zero
+  # before the full run is allowed to start — catches every label-masking bug cheaply.
+  overfit_qa_pairs: 16
+  overfit_max_steps: 200
+  overfit_loss_target: 0.05
+  save_every: 200
+  log_every: 10
+  max_seq_len: 4096 # generous headroom under the max_pixels cap (design decision 10) for multi-view prompts

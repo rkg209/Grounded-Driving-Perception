@@ -50,6 +50,24 @@ grounding: # Spec 04 — self-built grounding eval set, the sanctioned H9 except
   phrases_path: data/grounding_eval/phrases.json
   overlays_dir: data/grounding_eval/overlays
 
+vlm_training: # Spec 07 — LoRA fine-tune tunables for the VLM (default.yaml). A separate model from `training:` (H6).
+  lr: 1.0e-4
+  weight_decay: 0.0
+  warmup_ratio: 0.03
+  epochs: 2
+  batch_size: 1
+  grad_accum: 8 # 3B model at batch_size=1 needs accumulation; spec 03's detector trainer refuses this, spec 07 implements it
+  max_grad_norm: 1.0
+  lora_dropout: 0.05
+  gradient_checkpointing: true
+  # Overfit-16 gate: must be true (final loss < overfit_loss_target) before the real run is allowed to start.
+  overfit_qa_pairs: 16
+  overfit_max_steps: 200
+  overfit_loss_target: 0.05
+  save_every: 200
+  log_every: 10
+  max_seq_len: 4096
+
 drivelm: # Spec 06 — Stage-2 data, official nuScenes scene split. Points at the fixture by default.
   annotations: tests/fixtures/mini_drivelm/v1_1_mini_nus.json
   nuscenes_root: tests/fixtures/mini_drivelm

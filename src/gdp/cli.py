@@ -14,7 +14,11 @@ from typing import Annotated
 
 import typer
 from torch.utils.data import DataLoader
-from transformers import AutoProcessor, GroundingDinoForObjectDetection
+from transformers import (
+    AutoProcessor,
+    GroundingDinoForObjectDetection,
+    Qwen2_5_VLForConditionalGeneration,
+)
 
 from gdp import __version__
 from gdp.config import Config, load_config
@@ -58,11 +62,18 @@ from gdp.ground.phrases import assert_frozen, ensure_valid, load_phrases, valida
 from gdp.ground.phrases import freeze as freeze_phrases
 from gdp.ground.sample import sample_and_render
 from gdp.logging import get_logger
-from gdp.paths import repo_root, resolve, run_dir
+from gdp.paths import git_sha, repo_root, resolve, run_dir
 from gdp.probe.openvocab import load_probe_images, load_probe_phrases, run_probe, write_probe_result
 from gdp.seed import select_device, set_seed
 from gdp.train.dataset import DetectionCollator, SampleDataset
 from gdp.train.trainer import DetectorTrainer
+from gdp.vqa.chat import load_jsonl
+from gdp.vqa.dataset import DriveLMVQADataset, VQACollator
+from gdp.vqa.generate import answer as vqa_answer
+from gdp.vqa.generate import load_adapter
+from gdp.vqa.labels import processor_pixel_budget
+from gdp.vqa.lora import LM_TARGET_RE, attach_lora, trainable_parameter_summary
+from gdp.vqa.trainer import VLMTrainer
 
 app = typer.Typer(
     name="gdp",
@@ -98,6 +109,13 @@ deploy_app = typer.Typer(
     name="deploy",
     help="Spec 05 — export to ONNX, quantize to INT8, and benchmark accuracy-vs-latency on the "
     "M4 (the edge target itself, H3).",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+vqa_app = typer.Typer(
+    name="vqa",
+    help="Stage 2 — driving-scene VQA with Qwen2.5-VL (a separate model from `detect`, H6).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -720,6 +738,197 @@ def train_detector(
         typer.echo(f"overfit gate passed: final loss {final_loss:.4f} < {target} -> {ckpt_dir}")
     else:
         typer.echo(f"trained {trainer.step} steps, final loss {final_loss:.4f} -> {ckpt_dir}")
+
+
+@train_app.command("vlm")
+def train_vlm(
+    config: ConfigOpt = None,
+    train_jsonl: Annotated[
+        str | None,
+        typer.Option(
+            "--train-jsonl",
+            help="DriveLM train.jsonl (defaults to drivelm.out_dir/train.jsonl, spec 06).",
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="Cap the number of QA pairs.")
+    ] = None,
+    overfit: Annotated[
+        int | None,
+        typer.Option(
+            "--overfit",
+            help="Train on a fixed N-QA-pair subset and enforce vlm_training.overfit_loss_target "
+            "as an exit-code gate (mirrors spec 03 design decision 5) — overrides --limit and "
+            "vlm_training.overfit_qa_pairs.",
+        ),
+    ] = None,
+    max_steps: Annotated[
+        int | None,
+        typer.Option(
+            "--max-steps",
+            help="Total optimizer steps. Defaults to vlm_training.overfit_max_steps in --overfit "
+            "mode, else vlm_training.epochs * steps-per-epoch.",
+        ),
+    ] = None,
+    resume: Annotated[
+        str | None,
+        typer.Option("--resume", help="A checkpoint-<step> dir to restore step/optimizer from."),
+    ] = None,
+) -> None:
+    """LoRA fine-tune Qwen2.5-VL-3B on DriveLM (spec 07, H1: adapting a pretrained VLM).
+
+    Writes `runs/07-finetune-vlm/<timestamp>/checkpoint-<step>/` (LoRA adapter only + processor +
+    trainer_state.pt), `train_log.jsonl`, and `train_config.json` (subset size, drop stats, seed,
+    the pixel budget read back off the processor, the LoRA target regex, trainable-parameter
+    summary, git sha — acceptance criterion 5). `--overfit N` is the overfit gate (acceptance 1).
+    **No evaluation happens here** (H2) — spec 08 owns every accuracy number.
+    """
+    cfg = _load(config)
+    set_seed(cfg.seed)
+    device = select_device(cfg.device)
+
+    jsonl_path = resolve(train_jsonl) if train_jsonl else cfg.drivelm.out_dir_path() / "train.jsonl"
+    if not jsonl_path.is_file():
+        _die(f"train jsonl not found: {jsonl_path}")
+
+    records = load_jsonl(jsonl_path)
+    n_records = overfit if overfit is not None else limit
+    if n_records:
+        records = records[:n_records]
+
+    processor_kwargs = {}
+    if cfg.vlm.max_pixels is not None:
+        processor_kwargs["max_pixels"] = cfg.vlm.max_pixels
+    processor = AutoProcessor.from_pretrained(cfg.vlm.model_id, **processor_kwargs)
+    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(cfg.vlm.model_id)
+
+    out_dir = run_dir("07-finetune-vlm")
+    model = attach_lora(model, cfg)
+
+    dataset = DriveLMVQADataset(
+        records,
+        processor,
+        cfg.drivelm.nuscenes_root_path(),
+        num_views=cfg.vlm.num_views,
+        max_seq_len=cfg.vlm_training.max_seq_len,
+    )
+    if len(dataset) == 0:
+        _die(f"no usable QA pairs after encoding and filtering (drop_stats={dataset.drop_stats})")
+
+    collator = VQACollator(processor)
+    loader = DataLoader(
+        dataset, batch_size=cfg.vlm_training.batch_size, shuffle=True, collate_fn=collator
+    )
+
+    trainer = VLMTrainer(model, processor, cfg.vlm_training, out_dir, device=device)
+
+    steps_per_epoch = max(len(loader) // cfg.vlm_training.grad_accum, 1)
+    total_steps = max_steps or (
+        cfg.vlm_training.overfit_max_steps
+        if overfit is not None
+        else cfg.vlm_training.epochs * steps_per_epoch
+    )
+    trainer.build_scheduler(total_steps)
+    # After build_scheduler, never before — see DetectorTrainer.resume / VLMTrainer.resume.
+    if resume:
+        trainer.resume(resume)
+
+    (out_dir / "train_config.json").write_text(
+        json.dumps(
+            {
+                "subset_size": len(dataset),
+                "drop_stats": dataset.drop_stats,
+                "seed": cfg.seed,
+                "max_pixels": processor_pixel_budget(processor),
+                "lora_target_regex": LM_TARGET_RE,
+                "trainable_parameters": trainable_parameter_summary(trainer.model),
+                "total_steps": total_steps,
+                "overfit_qa_pairs": overfit,
+                "git_sha": git_sha(),
+            },
+            indent=2,
+        )
+    )
+
+    final_loss: float | None = None
+    last_saved_step = trainer.step
+    while trainer.step < total_steps:
+        for batch in loader:
+            if trainer.step >= total_steps:
+                break
+            record = trainer.train_step(batch)
+            final_loss = record["loss"]
+            if trainer.step != last_saved_step and trainer.step % cfg.vlm_training.save_every == 0:
+                trainer.save_checkpoint()
+                last_saved_step = trainer.step
+    ckpt_dir = trainer.save_checkpoint()
+
+    if overfit is not None:
+        target = cfg.vlm_training.overfit_loss_target
+        if final_loss is None or final_loss >= target:
+            typer.secho(
+                f"overfit gate FAILED: final loss {final_loss} >= target {target}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        typer.echo(f"overfit gate passed: final loss {final_loss:.4f} < {target} -> {ckpt_dir}")
+    else:
+        typer.echo(f"trained {trainer.step} steps, final loss {final_loss:.4f} -> {ckpt_dir}")
+
+
+@vqa_app.command("generate")
+def vqa_generate(
+    adapter: Annotated[
+        str, typer.Option("--adapter", help="LoRA adapter checkpoint dir from `gdp train vlm`.")
+    ],
+    config: ConfigOpt = None,
+    train_jsonl: Annotated[
+        str | None,
+        typer.Option(
+            "--train-jsonl", help="DriveLM jsonl to pull a fixture record's question from."
+        ),
+    ] = None,
+    index: Annotated[
+        int, typer.Option("--index", help="Which record in the jsonl to generate an answer for.")
+    ] = 0,
+) -> None:
+    """Load an adapter and generate one answer — a **demo, not a result** (H2).
+
+    Never scored, never compared to `record.answer` — spec 08 owns every VQA accuracy number. This
+    command only proves the adapter loads back and produces coherent text (acceptance criterion 4).
+    """
+    cfg = _load(config)
+    set_seed(cfg.seed)
+    device = select_device(cfg.device)
+
+    jsonl_path = resolve(train_jsonl) if train_jsonl else cfg.drivelm.out_dir_path() / "train.jsonl"
+    if not jsonl_path.is_file():
+        _die(f"jsonl not found: {jsonl_path}")
+    records = load_jsonl(jsonl_path)
+    if not 0 <= index < len(records):
+        _die(f"--index {index} out of range for {len(records)} record(s) in {jsonl_path}")
+    record = records[index]
+
+    processor_kwargs = {}
+    if cfg.vlm.max_pixels is not None:
+        processor_kwargs["max_pixels"] = cfg.vlm.max_pixels
+    processor = AutoProcessor.from_pretrained(cfg.vlm.model_id, **processor_kwargs)
+    model = load_adapter(cfg.vlm.model_id, adapter, device=device)
+
+    generated = vqa_answer(
+        processor,
+        model,
+        record,
+        nuscenes_root=cfg.drivelm.nuscenes_root_path(),
+        device=device,
+        num_views=cfg.vlm.num_views,
+        max_new_tokens=cfg.vlm.max_new_tokens,
+    )
+
+    typer.echo("demo, not a result (H2) — never scored against record.answer")
+    typer.echo(f"question: {record.question}")
+    typer.echo(f"generated: {generated} -> {adapter}")
 
 
 @app.command()
@@ -1379,12 +1588,6 @@ def deploy_evaluate_variants(
 
 
 @app.command()
-def vqa(config: ConfigOpt = None) -> None:
-    """Ask a question about a driving scene (Stage 2 — a separate model from `detect`, H6)."""
-    _pending("07-finetune-vlm", "Qwen2.5-VL driving-scene VQA")
-
-
-@app.command()
 def demo(config: ConfigOpt = None) -> None:
     """Launch the integrated Gradio demo (query→boxes, question→answer)."""
     _pending("09-integrated-demo", "integrated Gradio demo")
@@ -1394,6 +1597,7 @@ app.add_typer(data_app, name="data")
 app.add_typer(train_app, name="train")
 app.add_typer(ground_app, name="ground")
 app.add_typer(deploy_app, name="deploy")
+app.add_typer(vqa_app, name="vqa")
 
 
 if __name__ == "__main__":

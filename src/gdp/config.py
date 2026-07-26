@@ -247,6 +247,75 @@ class DriveLMConfig:
             raise ValueError("drivelm.categories must not be empty")
 
 
+@dataclass
+class VLMTrainingConfig:
+    """Spec 07 — LoRA fine-tuning the VLM. Tunables only; no magic constants in trainer code."""
+
+    lr: float = 1e-4
+    weight_decay: float = 0.0
+    warmup_ratio: float = 0.03
+    epochs: int = 2
+    batch_size: int = 1
+    # A 3B VLM at batch_size=1 needs accumulation to reach a usable effective batch size — unlike
+    # spec 03's detector trainer, which refuses grad_accum, this one implements it (spec 07 task 6).
+    grad_accum: int = 8
+    max_grad_norm: float = 1.0
+    lora_dropout: float = 0.05
+    gradient_checkpointing: bool = True
+    # The overfit-N gate (spec 07 design decision, mirroring spec 03): trains on a fixed subset and
+    # asserts final loss < overfit_loss_target before the real run is allowed to start.
+    overfit_qa_pairs: int = 16
+    overfit_max_steps: int = 200
+    overfit_loss_target: float = 0.05
+    save_every: int = 200
+    log_every: int = 10
+    max_seq_len: int = 4096
+
+    def validate(self) -> None:
+        if self.lr <= 0:
+            raise ValueError(f"vlm_training.lr must be positive, got {self.lr}")
+        if self.weight_decay < 0:
+            raise ValueError(
+                f"vlm_training.weight_decay must be non-negative, got {self.weight_decay}"
+            )
+        if not 0.0 <= self.warmup_ratio <= 1.0:
+            raise ValueError(
+                f"vlm_training.warmup_ratio must be in [0, 1], got {self.warmup_ratio}"
+            )
+        if self.epochs <= 0:
+            raise ValueError(f"vlm_training.epochs must be positive, got {self.epochs}")
+        if self.batch_size <= 0:
+            raise ValueError(f"vlm_training.batch_size must be positive, got {self.batch_size}")
+        if self.grad_accum <= 0:
+            raise ValueError(f"vlm_training.grad_accum must be positive, got {self.grad_accum}")
+        if self.max_grad_norm <= 0:
+            raise ValueError(
+                f"vlm_training.max_grad_norm must be positive, got {self.max_grad_norm}"
+            )
+        if not 0.0 <= self.lora_dropout < 1.0:
+            raise ValueError(
+                f"vlm_training.lora_dropout must be in [0, 1), got {self.lora_dropout}"
+            )
+        if self.overfit_qa_pairs <= 0:
+            raise ValueError(
+                f"vlm_training.overfit_qa_pairs must be positive, got {self.overfit_qa_pairs}"
+            )
+        if self.overfit_max_steps <= 0:
+            raise ValueError(
+                f"vlm_training.overfit_max_steps must be positive, got {self.overfit_max_steps}"
+            )
+        if self.overfit_loss_target <= 0:
+            raise ValueError(
+                f"vlm_training.overfit_loss_target must be positive, got {self.overfit_loss_target}"
+            )
+        if self.save_every <= 0:
+            raise ValueError(f"vlm_training.save_every must be positive, got {self.save_every}")
+        if self.log_every <= 0:
+            raise ValueError(f"vlm_training.log_every must be positive, got {self.log_every}")
+        if self.max_seq_len <= 0:
+            raise ValueError(f"vlm_training.max_seq_len must be positive, got {self.max_seq_len}")
+
+
 VALID_QUANTIZATION = ("dynamic", "static")
 
 
@@ -285,6 +354,7 @@ class Config:
     grounding: GroundingConfig = field(default_factory=GroundingConfig)
     deploy: DeployConfig = field(default_factory=DeployConfig)
     drivelm: DriveLMConfig = field(default_factory=DriveLMConfig)
+    vlm_training: VLMTrainingConfig = field(default_factory=VLMTrainingConfig)
 
     def validate(self) -> Config:
         if self.device not in VALID_DEVICES:
@@ -313,6 +383,7 @@ class Config:
         self.grounding.validate()
         self.deploy.validate()
         self.drivelm.validate()
+        self.vlm_training.validate()
         return self
 
 

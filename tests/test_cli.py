@@ -26,7 +26,6 @@ runner = CliRunner()
 
 # command → the spec that will implement it
 PENDING = {
-    "vqa": "07-finetune-vlm",
     "demo": "09-integrated-demo",
 }
 
@@ -34,7 +33,7 @@ PENDING = {
 def test_help_lists_the_whole_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ["info", "data", "detect", "evaluate", "train", "deploy", *PENDING]:
+    for command in ["info", "data", "detect", "evaluate", "train", "deploy", "vqa", *PENDING]:
         assert command in result.stdout
 
 
@@ -43,6 +42,35 @@ def test_deploy_help_lists_its_subcommands():
     assert result.exit_code == 0
     for subcommand in ["export", "quantize", "bench", "evaluate-variants"]:
         assert subcommand in result.stdout
+
+
+def test_train_help_lists_detector_and_vlm():
+    result = runner.invoke(app, ["train", "--help"])
+    assert result.exit_code == 0
+    assert "detector" in result.stdout
+    assert "vlm" in result.stdout
+
+
+def test_train_vlm_help_is_implemented():
+    """Spec 07 (H2, cluster-only): the command exists and documents itself, but actually running
+    it needs the real 3B model + real DriveLM data — never invoked for real in a laptop test."""
+    result = runner.invoke(app, ["train", "vlm", "--help"])
+    assert result.exit_code == 0
+    assert "--train-jsonl" in result.stdout
+    assert "--overfit" in result.stdout
+    assert "--resume" in result.stdout
+
+
+def test_vqa_help_lists_generate():
+    result = runner.invoke(app, ["vqa", "--help"])
+    assert result.exit_code == 0
+    assert "generate" in result.stdout
+
+
+def test_vqa_generate_help_is_implemented():
+    result = runner.invoke(app, ["vqa", "generate", "--help"])
+    assert result.exit_code == 0
+    assert "--adapter" in result.stdout
 
 
 def test_info_is_implemented_and_reports_the_environment():

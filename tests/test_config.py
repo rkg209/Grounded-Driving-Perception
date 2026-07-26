@@ -119,6 +119,56 @@ def test_missing_config_file_raises():
             lambda c: setattr(c.drivelm, "categories", []),
             "drivelm.categories must not be empty",
         ),
+        (lambda c: setattr(c.vlm_training, "lr", 0.0), "vlm_training.lr must be positive"),
+        (
+            lambda c: setattr(c.vlm_training, "weight_decay", -1.0),
+            "vlm_training.weight_decay must be non-negative",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "warmup_ratio", 1.5),
+            "vlm_training.warmup_ratio must be in",
+        ),
+        (lambda c: setattr(c.vlm_training, "epochs", 0), "vlm_training.epochs must be positive"),
+        (
+            lambda c: setattr(c.vlm_training, "batch_size", 0),
+            "vlm_training.batch_size must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "grad_accum", 0),
+            "vlm_training.grad_accum must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "max_grad_norm", 0.0),
+            "vlm_training.max_grad_norm must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "lora_dropout", 1.0),
+            "vlm_training.lora_dropout must be in",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "overfit_qa_pairs", 0),
+            "vlm_training.overfit_qa_pairs must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "overfit_max_steps", 0),
+            "vlm_training.overfit_max_steps must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "overfit_loss_target", -1.0),
+            "vlm_training.overfit_loss_target must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "save_every", 0),
+            "vlm_training.save_every must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "log_every", 0),
+            "vlm_training.log_every must be positive",
+        ),
+        (
+            lambda c: setattr(c.vlm_training, "max_seq_len", 0),
+            "vlm_training.max_seq_len must be positive",
+        ),
     ],
 )
 def test_validation_rejects_bad_values(mutate, match):
@@ -148,6 +198,21 @@ def test_deploy_overlay_loads():
     assert cfg.deploy.timed_iters == 200
     assert cfg.deploy.quantization == "dynamic"
     assert cfg.deploy.onnx_opset == 17
+
+
+def test_vlm_training_defaults_are_valid():
+    cfg = load_config()
+    assert cfg.vlm_training.lr == 1e-4
+    assert cfg.vlm_training.overfit_qa_pairs == 16
+    assert cfg.vlm_training.grad_accum == 8
+
+
+def test_train_vlm_overlay_only_changes_vlm_training():
+    cfg = load_config("configs/default.yaml", "configs/train_vlm.yaml")
+    assert cfg.vlm_training.lr == 1e-4
+    assert cfg.vlm_training.overfit_qa_pairs == 16
+    assert cfg.vlm_training.max_seq_len == 4096
+    assert cfg.vlm.model_id == "Qwen/Qwen2.5-VL-3B-Instruct"
     assert cfg.detector.model_id == "IDEA-Research/grounding-dino-tiny"
 
 
