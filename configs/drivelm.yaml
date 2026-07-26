@@ -1,0 +1,15 @@
+# Real DriveLM + nuScenes. Requires both to be registered and downloaded (spec 06) — neither is
+# in the repo. See docs/drivelm-download.md for registration steps and the expected directory tree.
+#
+# Cluster use:
+#   uv run gdp data prepare-drivelm -c configs/default.yaml -c configs/drivelm.yaml --dataset drivelm --split both
+
+drivelm:
+  annotations: data/drivelm/v1_1_train_nus.json
+  nuscenes_root: data/nuscenes
+  scene_meta: data/nuscenes/v1.0-trainval/scene.json
+  out_dir: data/drivelm
+  train_scene_fraction: 1.0
+  subsample_seed: 42
+
+device: auto

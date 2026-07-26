@@ -15,6 +15,7 @@ dependencies = [
     "pyyaml>=6.0",
     "scipy>=1.17.1",
     "torch>=2.4",
+    "torchvision>=0.19",
     "transformers>=4.44",
     "typer>=0.12",
 ]

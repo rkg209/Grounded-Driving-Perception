@@ -1,0 +1,11 @@
+{
+  "note": "Informational only. Fixture scenes use real official nuScenes scene names, so gdp.data.splits.resolve_split resolves them against the real vendored src/gdp/data/nuscenes_splits.json directly \u2014 this file is not read by any code path, it documents the expected resolution for test readers.",
+  "train": [
+    "scene-0001",
+    "scene-0002"
+  ],
+  "val": [
+    "scene-0003",
+    "scene-0012"
+  ]
+}

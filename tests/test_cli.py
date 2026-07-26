@@ -110,6 +110,98 @@ def test_data_prepare_rejects_unknown_dataset(clean_01_data_runs):
     assert result.exit_code == 1
 
 
+def test_data_prepare_help_lists_prepare_drivelm():
+    result = runner.invoke(app, ["data", "--help"])
+    assert result.exit_code == 0
+    assert "prepare-drivelm" in result.stdout
+
+
+@pytest.fixture
+def clean_06_data_runs():
+    """`gdp data prepare-drivelm` writes a fresh timestamped dir per invocation; clean up after."""
+    runs_dir = resolve("runs/06-data")
+    before = set(runs_dir.iterdir()) if runs_dir.is_dir() else set()
+    yield
+    after = set(runs_dir.iterdir()) if runs_dir.is_dir() else set()
+    for new_dir in after - before:
+        shutil.rmtree(new_dir)
+
+
+def test_data_prepare_drivelm_writes_jsonl_and_stats_end_to_end(clean_06_data_runs):
+    """Acceptance 1-3: `gdp data prepare-drivelm --dataset mini_drivelm` exits 0 and writes
+    train/val JSONL whose line counts match `stats_{train,val}.json`'s `qa_count`, with zero
+    scene-token overlap between the two splits."""
+    result = runner.invoke(
+        app,
+        ["data", "prepare-drivelm", "-c", "configs/default.yaml", "--dataset", "mini_drivelm"],
+    )
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/06-data")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    train_lines = (latest / "train.jsonl").read_text().splitlines()
+    val_lines = (latest / "val.jsonl").read_text().splitlines()
+
+    train_stats = json.loads((latest / "stats_train.json").read_text())
+    val_stats = json.loads((latest / "stats_val.json").read_text())
+    assert len(train_lines) == train_stats["qa_count"]
+    assert len(val_lines) == val_stats["qa_count"]
+    for field in ("official_split", "split_provenance", "caveat", "is_synthetic"):
+        assert field in train_stats
+        assert field in val_stats
+
+    train_tokens = {json.loads(line)["scene_token"] for line in train_lines}
+    val_tokens = {json.loads(line)["scene_token"] for line in val_lines}
+    assert train_tokens.isdisjoint(val_tokens)
+
+
+def test_data_prepare_drivelm_subsample_path(clean_06_data_runs):
+    result = runner.invoke(
+        app,
+        [
+            "data",
+            "prepare-drivelm",
+            "-c",
+            "configs/default.yaml",
+            "--dataset",
+            "mini_drivelm",
+            "--train-fraction",
+            "0.5",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/06-data")
+    latest = max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    assert (latest / "subsample.json").is_file()
+    subsample = json.loads((latest / "subsample.json").read_text())
+    assert subsample["unit"] == "scene"
+    assert subsample["fraction"] == 0.5
+
+
+def test_data_prepare_drivelm_rejects_val_with_train_fraction(clean_06_data_runs):
+    result = runner.invoke(
+        app,
+        [
+            "data",
+            "prepare-drivelm",
+            "--dataset",
+            "mini_drivelm",
+            "--split",
+            "val",
+            "--train-fraction",
+            "0.5",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "never subsampled" in (result.stdout + str(result.stderr or ""))
+
+
+def test_data_prepare_drivelm_rejects_unknown_dataset(clean_06_data_runs):
+    result = runner.invoke(app, ["data", "prepare-drivelm", "--dataset", "nope"])
+    assert result.exit_code == 1
+
+
 @pytest.fixture
 def clean_02_zeroshot_runs():
     """`gdp detect` writes a fresh timestamped dir per invocation; clean up after."""

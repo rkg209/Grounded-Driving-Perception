@@ -21,6 +21,7 @@ Spec 01 extends this fixture two ways, both required to exercise its acceptance 
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from pathlib import Path
@@ -34,6 +35,23 @@ OUT = resolve("tests/fixtures/mini_bdd")
 OUT_RAW = resolve("tests/fixtures/mini_bdd_raw")
 W, H = 640, 360
 N_IMAGES = 4
+
+OUT_DRIVELM = resolve("tests/fixtures/mini_drivelm")
+DRIVELM_W, DRIVELM_H = 64, 36
+CAMERAS = (
+    "CAM_FRONT",
+    "CAM_FRONT_LEFT",
+    "CAM_FRONT_RIGHT",
+    "CAM_BACK",
+    "CAM_BACK_LEFT",
+    "CAM_BACK_RIGHT",
+)
+# Real official nuScenes v1.0-trainval scene *names* (verified against src/gdp/data/
+# nuscenes_splits.json) — using genuine names means gdp.data.splits.resolve_split resolves the
+# fixture's scenes against the real vendored split list, with no parallel "fixture split" concept
+# to keep honest separately (H9).
+DRIVELM_TRAIN_SCENES = ("scene-0001", "scene-0002")
+DRIVELM_VAL_SCENES = ("scene-0003", "scene-0012")
 
 # One colour per BDD100K class, so all 10 render distinguishably.
 PALETTE = {
@@ -156,6 +174,137 @@ def _write_dirty() -> None:
     (OUT_RAW / "det_dirty.json").write_text(json.dumps(frames, indent=2) + "\n")
 
 
+def _token(name: str) -> str:
+    """Deterministic 32-hex nuScenes-style token, derived from the scene/frame name — no RNG
+    needed for byte-stability."""
+    return hashlib.md5(name.encode()).hexdigest()
+
+
+def _drivelm_image(scene_name: str, camera: str) -> Image.Image:
+    img = Image.new("RGB", (DRIVELM_W, DRIVELM_H), (120, 140, 170))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, DRIVELM_H // 2, DRIVELM_W, DRIVELM_H], fill=(80, 80, 85))
+    d.text((2, 2), f"{scene_name[-2:]}/{camera[4:6]}", fill=(255, 255, 255))
+    return img
+
+
+def _drivelm_qa(scene_name: str) -> dict[str, list[dict[str, str]]]:
+    """One valid QA pair per official category. `<c1,CAM_FRONT,x,y>` object tags are embedded
+    byte-verbatim in the answer text (spec 06 design decision 4) — the converter must copy them
+    unmodified, never rewrite or strip them (H2)."""
+    tag = f"<c1,CAM_FRONT,{100 + len(scene_name)}.0,50.0>"
+    return {
+        "perception": [
+            {
+                "Q": "What objects are visible in the front camera?",
+                "A": f"There is a pedestrian {tag} near the crosswalk.",
+            }
+        ],
+        "prediction": [
+            {"Q": "What will the pedestrian do next?", "A": "The pedestrian will keep walking."}
+        ],
+        "planning": [
+            {"Q": "What is the safe action for the ego vehicle?", "A": "Slow down and yield."}
+        ],
+        "behavior": [{"Q": "What is the ego vehicle's current behavior?", "A": "Decelerating."}],
+    }
+
+
+def _make_mini_drivelm() -> None:
+    """Synthetic mini-DriveLM: 4 scenes under real official nuScenes scene *names* (2 train, 2
+    val — see DRIVELM_TRAIN_SCENES/DRIVELM_VAL_SCENES), six tiny camera JPEGs each, all four
+    DriveLM categories present, and one deliberately malformed QA/record per drop reason so
+    `gdp.data.drivelm`'s drop accounting is genuinely exercised rather than merely plumbed."""
+    OUT_DRIVELM.mkdir(parents=True, exist_ok=True)
+    samples_dir = OUT_DRIVELM / "samples"
+
+    scenes = {}
+    scene_meta = []
+    all_scene_names = list(DRIVELM_TRAIN_SCENES) + list(DRIVELM_VAL_SCENES)
+
+    for scene_name in all_scene_names:
+        scene_token = _token(scene_name)
+        clean_frame_token = _token(scene_name + "_frame")
+        scene_meta.append({"token": scene_token, "name": scene_name})
+
+        def _full_image_paths(scene_name: str = scene_name) -> dict[str, str]:
+            paths = {}
+            for cam in CAMERAS:
+                rel = f"samples/{cam}/{scene_name}__{cam}.jpg"
+                cam_dir = samples_dir / cam
+                cam_dir.mkdir(parents=True, exist_ok=True)
+                if not (OUT_DRIVELM / rel).is_file():
+                    _drivelm_image(scene_name, cam).save(OUT_DRIVELM / rel, quality=90)
+                paths[cam] = rel
+            return paths
+
+        # Every scene gets one clean key_frame, so a scene that also carries a malformed frame
+        # (below) still has at least one surviving QA record in its split — a frame-level drop
+        # must not silently zero out an entire split (that would defeat the fixture's own
+        # purpose: proving the drop accounting works *without* losing split coverage).
+        clean_qa = _drivelm_qa(scene_name)
+        key_frames = {
+            clean_frame_token: {
+                "image_paths": _full_image_paths(),
+                "key_object_infos": {
+                    f"<c1,CAM_FRONT,{100 + len(scene_name)}.0,50.0>": {
+                        "Category": "pedestrian",
+                        "Visual_description": "a pedestrian near the crosswalk",
+                    }
+                },
+                "QA": clean_qa,
+            }
+        }
+
+        if scene_name == "scene-0001":
+            # DROP_REASONS["missing_qa_text"]: empty answer, alongside the clean QA above.
+            clean_qa["perception"].append({"Q": "What is behind the ego vehicle?", "A": ""})
+        if scene_name == "scene-0002":
+            # DROP_REASONS["unknown_category"]: key outside DRIVELM_CATEGORIES.
+            clean_qa["misc"] = [{"Q": "Off-taxonomy question?", "A": "Off-taxonomy answer."}]
+        if scene_name == "scene-0003":
+            # DROP_REASONS["missing_image_path"]: a second frame missing a camera key entirely.
+            bad_token = _token(scene_name + "_frame_missing_view")
+            bad_paths = _full_image_paths()
+            del bad_paths["CAM_BACK_LEFT"]
+            key_frames[bad_token] = {
+                "image_paths": bad_paths,
+                "key_object_infos": {},
+                "QA": _drivelm_qa(scene_name),
+            }
+        if scene_name == "scene-0012":
+            # DROP_REASONS["image_file_missing"]: path declared, file never written.
+            bad_token = _token(scene_name + "_frame_missing_file")
+            bad_paths = _full_image_paths()
+            bad_paths["CAM_BACK_RIGHT"] = f"samples/CAM_BACK_RIGHT/{scene_name}__does_not_exist.jpg"
+            key_frames[bad_token] = {
+                "image_paths": bad_paths,
+                "key_object_infos": {},
+                "QA": _drivelm_qa(scene_name),
+            }
+
+        scenes[scene_token] = {"key_frames": key_frames}
+
+    (OUT_DRIVELM / "v1_1_mini_nus.json").write_text(json.dumps(scenes, indent=2) + "\n")
+    (OUT_DRIVELM / "scene.json").write_text(json.dumps(scene_meta, indent=2) + "\n")
+    (OUT_DRIVELM / "mini_splits.json").write_text(
+        json.dumps(
+            {
+                "note": "Informational only. Fixture scenes use real official nuScenes scene "
+                "names, so gdp.data.splits.resolve_split resolves them against the real vendored "
+                "src/gdp/data/nuscenes_splits.json directly — this file is not read by any code "
+                "path, it documents the expected resolution for test readers.",
+                "train": list(DRIVELM_TRAIN_SCENES),
+                "val": list(DRIVELM_VAL_SCENES),
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    n_images = sum(1 for _ in samples_dir.rglob("*.jpg"))
+    print(f"wrote {len(all_scene_names)} scenes / {n_images} images to {OUT_DRIVELM}")
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     OUT_RAW.mkdir(parents=True, exist_ok=True)
@@ -193,6 +342,8 @@ def main() -> None:
 
     print(f"wrote {len(images)} images + {len(annotations)} boxes to {Path(OUT)}")
     print(f"wrote raw fixtures to {Path(OUT_RAW)}")
+
+    _make_mini_drivelm()
 
 
 if __name__ == "__main__":

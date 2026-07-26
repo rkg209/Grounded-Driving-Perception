@@ -99,6 +99,26 @@ def test_missing_config_file_raises():
             lambda c: setattr(c.deploy, "onnx_opset", 0),
             "deploy.onnx_opset must be positive",
         ),
+        (
+            lambda c: setattr(c.vlm, "num_views", 7),
+            "vlm.num_views must be in",
+        ),
+        (
+            lambda c: setattr(c.vlm, "max_pixels", -1),
+            "vlm.max_pixels must be positive",
+        ),
+        (
+            lambda c: setattr(c.drivelm, "train_scene_fraction", 0.0),
+            "drivelm.train_scene_fraction must be in",
+        ),
+        (
+            lambda c: setattr(c.drivelm, "train_scene_fraction", 1.5),
+            "drivelm.train_scene_fraction must be in",
+        ),
+        (
+            lambda c: setattr(c.drivelm, "categories", []),
+            "drivelm.categories must not be empty",
+        ),
     ],
 )
 def test_validation_rejects_bad_values(mutate, match):
@@ -129,6 +149,22 @@ def test_deploy_overlay_loads():
     assert cfg.deploy.quantization == "dynamic"
     assert cfg.deploy.onnx_opset == 17
     assert cfg.detector.model_id == "IDEA-Research/grounding-dino-tiny"
+
+
+def test_drivelm_defaults_point_at_fixture():
+    cfg = load_config("configs/default.yaml")
+    assert cfg.drivelm.annotations == "tests/fixtures/mini_drivelm/v1_1_mini_nus.json"
+    assert cfg.drivelm.categories == ["perception", "prediction", "planning", "behavior"]
+    assert cfg.vlm.num_views == 1
+    assert cfg.vlm.max_pixels is None
+
+
+def test_drivelm_overlay_only_changes_drivelm():
+    cfg = load_config("configs/default.yaml", "configs/drivelm.yaml")
+    assert cfg.drivelm.annotations == "data/drivelm/v1_1_train_nus.json"
+    assert cfg.drivelm.nuscenes_root == "data/nuscenes"
+    assert cfg.detector.model_id == "IDEA-Research/grounding-dino-tiny"
+    assert cfg.seed == 42
 
 
 def test_detector_prompt_format():

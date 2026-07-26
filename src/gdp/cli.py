@@ -20,6 +20,9 @@ from gdp import __version__
 from gdp.config import Config, load_config
 from gdp.data.bdd100k import DEFAULT_IMAGE_HEIGHT, DEFAULT_IMAGE_WIDTH, convert_bdd_to_coco
 from gdp.data.core import load_dataset
+from gdp.data.drivelm import convert_drivelm, subsample_scenes, write_jsonl, write_subsample_json
+from gdp.data.drivelm_stats import build_drivelm_stats
+from gdp.data.splits import load_official_splits, load_scene_meta
 from gdp.data.stats import build_stats, write_stats
 from gdp.deploy.bench import collect_hardware_info, run_interleaved
 from gdp.deploy.curve import VariantPoint, plot_accuracy_vs_latency
@@ -240,6 +243,104 @@ def data_prepare(
 
     images_root = _images_root(cfg, dataset, splits[0])
     typer.echo(f"images root: {images_root}")
+
+
+_VALID_DRIVELM_DATASETS = ("drivelm", "mini_drivelm")
+
+
+@data_app.command("prepare-drivelm")
+def data_prepare_drivelm(
+    config: ConfigOpt = None,
+    dataset: Annotated[
+        str, typer.Option("--dataset", help="drivelm or mini_drivelm")
+    ] = "mini_drivelm",
+    split: Annotated[str, typer.Option("--split", help="train, val, or both")] = "both",
+    train_fraction: Annotated[
+        float, typer.Option("--train-fraction", help="scene-level train subsample fraction")
+    ] = 1.0,
+) -> None:
+    """Convert DriveLM's raw nested JSON into `{train,val}.jsonl` on the official nuScenes
+    train/val scene split (spec 06). Writes `stats_{train,val}.json` and, if `--train-fraction`
+    subsamples, `subsample.json` to a fresh `runs/06-data/<timestamp>/` directory.
+
+    `--dataset mini_drivelm` runs the same code path on the synthetic fixture — the offline smoke
+    path that needs no registration or download. Val is **never** subsampled: `--train-fraction`
+    with `--split val` is rejected outright, not silently ignored.
+    """
+    if dataset not in _VALID_DRIVELM_DATASETS:
+        _die(f"unknown --dataset {dataset!r}; expected one of {_VALID_DRIVELM_DATASETS}")
+    if split not in _VALID_SPLITS:
+        _die(f"unknown --split {split!r}; expected one of {_VALID_SPLITS}")
+    if split == "val" and train_fraction != 1.0:
+        _die("--train-fraction only applies to train; val is never subsampled (H7)")
+
+    cfg = _load(config)
+    drivelm_cfg = cfg.drivelm
+    is_synthetic = dataset == "mini_drivelm"
+
+    annotations_path = drivelm_cfg.annotations_path()
+    if not annotations_path.is_file():
+        _die(f"DriveLM annotations not found: {annotations_path}")
+
+    raw = json.loads(annotations_path.read_text())
+    scene_meta = load_scene_meta(drivelm_cfg.scene_meta_path())
+    official_splits = load_official_splits()
+
+    try:
+        train_records, val_records, conv_stats = convert_drivelm(
+            raw,
+            scene_meta=scene_meta,
+            splits=official_splits,
+            images_root=drivelm_cfg.nuscenes_root_path(),
+            categories=tuple(drivelm_cfg.categories),
+            is_synthetic=is_synthetic,
+        )
+    except (KeyError, ValueError) as exc:
+        _die(str(exc))
+
+    out_dir = run_dir("06-data")
+    wanted_splits = ["train", "val"] if split == "both" else [split]
+
+    def _stats_filename(s: str) -> str:
+        return "stats.json" if len(wanted_splits) == 1 else f"stats_{s}.json"
+
+    if "train" in wanted_splits:
+        if train_fraction != 1.0:
+            try:
+                subsample_result = subsample_scenes(
+                    train_records, fraction=train_fraction, seed=drivelm_cfg.subsample_seed
+                )
+            except ValueError as exc:
+                _die(str(exc))
+            selected = set(subsample_result.selected_scene_tokens)
+            train_records = [r for r in train_records if r.scene_token in selected]
+            subsample_path = write_subsample_json(subsample_result, out_dir / "subsample.json")
+            typer.echo(f"train: wrote {subsample_path}")
+
+        train_path = write_jsonl(train_records, out_dir / "train.jsonl")
+        train_stats = build_drivelm_stats(
+            train_records,
+            conv_stats,
+            split="train",
+            source_file=annotations_path,
+            is_synthetic=is_synthetic,
+        )
+        train_stats_path = write_stats(
+            train_stats, out_dir=out_dir, filename=_stats_filename("train")
+        )
+        typer.echo(f"train: wrote {train_path} and {train_stats_path}")
+
+    if "val" in wanted_splits:
+        val_path = write_jsonl(val_records, out_dir / "val.jsonl")
+        val_stats = build_drivelm_stats(
+            val_records,
+            conv_stats,
+            split="val",
+            source_file=annotations_path,
+            is_synthetic=is_synthetic,
+        )
+        val_stats_path = write_stats(val_stats, out_dir=out_dir, filename=_stats_filename("val"))
+        typer.echo(f"val: wrote {val_path} and {val_stats_path}")
 
 
 def _detect_dataset_paths(cfg: Config, dataset: str, split: str) -> tuple[Path, Path]:

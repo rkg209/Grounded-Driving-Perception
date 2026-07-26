@@ -186,6 +186,65 @@ class VLMConfig:
     max_new_tokens: int = 128
     lora_r: int = 16
     lora_alpha: int = 32
+    # Number of camera views fed into the chat prompt (spec 06 design decision 5). Default 1
+    # (CAM_FRONT) keeps Qwen2.5-VL's image-token budget sane; all six views are still stored
+    # per-record so this is a training-time knob, not a data-loss decision.
+    num_views: int = 1
+    # Passed straight to the Qwen2.5-VL processor to cap per-image token count. None = processor
+    # default. Spec 07 flags max_pixels/sequence-length blowup as an accuracy lever.
+    max_pixels: int | None = None
+
+    def validate(self) -> None:
+        if self.max_new_tokens <= 0:
+            raise ValueError(f"vlm.max_new_tokens must be positive, got {self.max_new_tokens}")
+        if not 1 <= self.num_views <= 6:
+            raise ValueError(f"vlm.num_views must be in [1, 6], got {self.num_views}")
+        if self.max_pixels is not None and self.max_pixels <= 0:
+            raise ValueError(f"vlm.max_pixels must be positive, got {self.max_pixels}")
+
+
+# DriveLM's own category spelling ("behavior", US) is kept verbatim as the canonical set of
+# `category` values (spec 06 design decision 6) — the charter/spec prose says "behaviour" (UK),
+# but rewriting the key would either break the join with DriveLM's raw JSON or silently merge two
+# buckets in spec 08's per-category accuracy. An unknown category key is a counted drop, never a
+# coerced one.
+DRIVELM_CATEGORIES: tuple[str, ...] = ("perception", "prediction", "planning", "behavior")
+
+
+@dataclass
+class DriveLMConfig:
+    """Spec 06 — DriveLM data pipeline. Stage 2's data source; preserves the official nuScenes
+    train/val scene split verbatim (H2) — see specs/06-data-drivelm.md's status note."""
+
+    annotations: str = "tests/fixtures/mini_drivelm/v1_1_mini_nus.json"
+    nuscenes_root: str = "tests/fixtures/mini_drivelm"
+    scene_meta: str = "tests/fixtures/mini_drivelm/scene.json"
+    out_dir: str = "data/drivelm"
+    # Fraction of *official train* scenes kept after scene-level stratified subsampling
+    # (spec 06 design decision 7). Val is never subsampled — no config field controls it.
+    train_scene_fraction: float = 1.0
+    subsample_seed: int = 42
+    categories: list[str] = field(default_factory=lambda: list(DRIVELM_CATEGORIES))
+
+    def annotations_path(self) -> Path:
+        return resolve(self.annotations)
+
+    def nuscenes_root_path(self) -> Path:
+        return resolve(self.nuscenes_root)
+
+    def scene_meta_path(self) -> Path:
+        return resolve(self.scene_meta)
+
+    def out_dir_path(self) -> Path:
+        return resolve(self.out_dir)
+
+    def validate(self) -> None:
+        if not 0.0 < self.train_scene_fraction <= 1.0:
+            raise ValueError(
+                f"drivelm.train_scene_fraction must be in (0, 1], got {self.train_scene_fraction}"
+            )
+        if not self.categories:
+            raise ValueError("drivelm.categories must not be empty")
 
 
 VALID_QUANTIZATION = ("dynamic", "static")
@@ -225,6 +284,7 @@ class Config:
     vlm: VLMConfig = field(default_factory=VLMConfig)
     grounding: GroundingConfig = field(default_factory=GroundingConfig)
     deploy: DeployConfig = field(default_factory=DeployConfig)
+    drivelm: DriveLMConfig = field(default_factory=DriveLMConfig)
 
     def validate(self) -> Config:
         if self.device not in VALID_DEVICES:
@@ -248,11 +308,11 @@ class Config:
                 raise ValueError(
                     f"detector.sweep_candidates entries must be in [0, 1], got {value}"
                 )
-        if self.vlm.max_new_tokens <= 0:
-            raise ValueError("vlm.max_new_tokens must be positive")
+        self.vlm.validate()
         self.training.validate()
         self.grounding.validate()
         self.deploy.validate()
+        self.drivelm.validate()
         return self
 
 

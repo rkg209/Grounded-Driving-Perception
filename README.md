@@ -68,6 +68,24 @@ uv run gdp --help # the full roadmap: implemented commands work, the rest name t
 
 Real datasets (BDD100K, DriveLM) require registration and are prepared by spec 01 / spec 06.
 
+### Stage-2 data (DriveLM)
+
+```bash
+uv run gdp data prepare-drivelm -c configs/default.yaml --dataset mini_drivelm --split both
+```
+
+runs offline against a synthetic 4-scene fixture (`tests/fixtures/mini_drivelm/`), the same way
+`gdp data prepare --dataset mini_bdd` does for Stage 1. The real command
+(`docs/drivelm-download.md`) needs nuScenes + DriveLM registered and downloaded separately.
+
+**The split is not the DriveLM leaderboard split.** DriveLM-nuScenes' challenge val/test answers
+are withheld behind EvalAI, so `train.jsonl`/`val.jsonl` instead partition DriveLM's *answered*
+train file by the **official nuScenes `v1.0-trainval` scene lists** (700 train / 150 val scenes,
+vendored with provenance in `src/gdp/data/nuscenes_splits.json`) — scene-clean by construction, so
+no near-duplicate 2 Hz frame from the same drive can appear in both train and val. Every artifact
+this pipeline writes carries a `caveat` field naming this explicitly (never silently); see
+`specs/06-data-drivelm.md`'s status note for the full resolution.
+
 ## Layout
 
 | Path | What |
@@ -77,7 +95,8 @@ Real datasets (BDD100K, DriveLM) require registration and are prepared by spec 0
 | `specs/` | The spec backlog (00–10) and its status index |
 | `progress_report.md` | Append-only story of the build: what, why, how, what broke |
 | `src/gdp/` | The package |
-| `tests/fixtures/mini_bdd/` | Synthetic scenes — **not real data**, never a source of results |
+| `tests/fixtures/mini_bdd/` | Synthetic Stage-1 scenes — **not real data**, never a source of results |
+| `tests/fixtures/mini_drivelm/` | Synthetic Stage-2 DriveLM scenes — same rule, `is_synthetic: true` |
 
 ## Development
 

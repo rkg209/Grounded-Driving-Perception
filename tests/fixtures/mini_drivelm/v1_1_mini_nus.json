@@ -1,0 +1,269 @@
+{
+  "e27e217789455f5ab204e5b52631b404": {
+    "key_frames": {
+      "0de490b726742bea78586fac55e74963": {
+        "image_paths": {
+          "CAM_FRONT": "samples/CAM_FRONT/scene-0001__CAM_FRONT.jpg",
+          "CAM_FRONT_LEFT": "samples/CAM_FRONT_LEFT/scene-0001__CAM_FRONT_LEFT.jpg",
+          "CAM_FRONT_RIGHT": "samples/CAM_FRONT_RIGHT/scene-0001__CAM_FRONT_RIGHT.jpg",
+          "CAM_BACK": "samples/CAM_BACK/scene-0001__CAM_BACK.jpg",
+          "CAM_BACK_LEFT": "samples/CAM_BACK_LEFT/scene-0001__CAM_BACK_LEFT.jpg",
+          "CAM_BACK_RIGHT": "samples/CAM_BACK_RIGHT/scene-0001__CAM_BACK_RIGHT.jpg"
+        },
+        "key_object_infos": {
+          "<c1,CAM_FRONT,110.0,50.0>": {
+            "Category": "pedestrian",
+            "Visual_description": "a pedestrian near the crosswalk"
+          }
+        },
+        "QA": {
+          "perception": [
+            {
+              "Q": "What objects are visible in the front camera?",
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+            },
+            {
+              "Q": "What is behind the ego vehicle?",
+              "A": ""
+            }
+          ],
+          "prediction": [
+            {
+              "Q": "What will the pedestrian do next?",
+              "A": "The pedestrian will keep walking."
+            }
+          ],
+          "planning": [
+            {
+              "Q": "What is the safe action for the ego vehicle?",
+              "A": "Slow down and yield."
+            }
+          ],
+          "behavior": [
+            {
+              "Q": "What is the ego vehicle's current behavior?",
+              "A": "Decelerating."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cf0cd34c31dfd3826bb0aa31e30eb764": {
+    "key_frames": {
+      "b2ea7318dc9cad73fd37056661032013": {
+        "image_paths": {
+          "CAM_FRONT": "samples/CAM_FRONT/scene-0002__CAM_FRONT.jpg",
+          "CAM_FRONT_LEFT": "samples/CAM_FRONT_LEFT/scene-0002__CAM_FRONT_LEFT.jpg",
+          "CAM_FRONT_RIGHT": "samples/CAM_FRONT_RIGHT/scene-0002__CAM_FRONT_RIGHT.jpg",
+          "CAM_BACK": "samples/CAM_BACK/scene-0002__CAM_BACK.jpg",
+          "CAM_BACK_LEFT": "samples/CAM_BACK_LEFT/scene-0002__CAM_BACK_LEFT.jpg",
+          "CAM_BACK_RIGHT": "samples/CAM_BACK_RIGHT/scene-0002__CAM_BACK_RIGHT.jpg"
+        },
+        "key_object_infos": {
+          "<c1,CAM_FRONT,110.0,50.0>": {
+            "Category": "pedestrian",
+            "Visual_description": "a pedestrian near the crosswalk"
+          }
+        },
+        "QA": {
+          "perception": [
+            {
+              "Q": "What objects are visible in the front camera?",
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+            }
+          ],
+          "prediction": [
+            {
+              "Q": "What will the pedestrian do next?",
+              "A": "The pedestrian will keep walking."
+            }
+          ],
+          "planning": [
+            {
+              "Q": "What is the safe action for the ego vehicle?",
+              "A": "Slow down and yield."
+            }
+          ],
+          "behavior": [
+            {
+              "Q": "What is the ego vehicle's current behavior?",
+              "A": "Decelerating."
+            }
+          ],
+          "misc": [
+            {
+              "Q": "Off-taxonomy question?",
+              "A": "Off-taxonomy answer."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "ac689937ccd6d25a96df5145af4c44a9": {
+    "key_frames": {
+      "7f52fbd3c2e414d4d02926015aeaa06e": {
+        "image_paths": {
+          "CAM_FRONT": "samples/CAM_FRONT/scene-0003__CAM_FRONT.jpg",
+          "CAM_FRONT_LEFT": "samples/CAM_FRONT_LEFT/scene-0003__CAM_FRONT_LEFT.jpg",
+          "CAM_FRONT_RIGHT": "samples/CAM_FRONT_RIGHT/scene-0003__CAM_FRONT_RIGHT.jpg",
+          "CAM_BACK": "samples/CAM_BACK/scene-0003__CAM_BACK.jpg",
+          "CAM_BACK_LEFT": "samples/CAM_BACK_LEFT/scene-0003__CAM_BACK_LEFT.jpg",
+          "CAM_BACK_RIGHT": "samples/CAM_BACK_RIGHT/scene-0003__CAM_BACK_RIGHT.jpg"
+        },
+        "key_object_infos": {
+          "<c1,CAM_FRONT,110.0,50.0>": {
+            "Category": "pedestrian",
+            "Visual_description": "a pedestrian near the crosswalk"
+          }
+        },
+        "QA": {
+          "perception": [
+            {
+              "Q": "What objects are visible in the front camera?",
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+            }
+          ],
+          "prediction": [
+            {
+              "Q": "What will the pedestrian do next?",
+              "A": "The pedestrian will keep walking."
+            }
+          ],
+          "planning": [
+            {
+              "Q": "What is the safe action for the ego vehicle?",
+              "A": "Slow down and yield."
+            }
+          ],
+          "behavior": [
+            {
+              "Q": "What is the ego vehicle's current behavior?",
+              "A": "Decelerating."
+            }
+          ]
+        }
+      },
+      "97524d912c1665b2a5fac7189f23faa9": {
+        "image_paths": {
+          "CAM_FRONT": "samples/CAM_FRONT/scene-0003__CAM_FRONT.jpg",
+          "CAM_FRONT_LEFT": "samples/CAM_FRONT_LEFT/scene-0003__CAM_FRONT_LEFT.jpg",
+          "CAM_FRONT_RIGHT": "samples/CAM_FRONT_RIGHT/scene-0003__CAM_FRONT_RIGHT.jpg",
+          "CAM_BACK": "samples/CAM_BACK/scene-0003__CAM_BACK.jpg",
+          "CAM_BACK_RIGHT": "samples/CAM_BACK_RIGHT/scene-0003__CAM_BACK_RIGHT.jpg"
+        },
+        "key_object_infos": {},
+        "QA": {
+          "perception": [
+            {
+              "Q": "What objects are visible in the front camera?",
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+            }
+          ],
+          "prediction": [
+            {
+              "Q": "What will the pedestrian do next?",
+              "A": "The pedestrian will keep walking."
+            }
+          ],
+          "planning": [
+            {
+              "Q": "What is the safe action for the ego vehicle?",
+              "A": "Slow down and yield."
+            }
+          ],
+          "behavior": [
+            {
+              "Q": "What is the ego vehicle's current behavior?",
+              "A": "Decelerating."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "65d8c5f3d5f7c7330bfae2f5714f2306": {
+    "key_frames": {
+      "a8ddd761d51a5bc33d847abb262b36d4": {
+        "image_paths": {
+          "CAM_FRONT": "samples/CAM_FRONT/scene-0012__CAM_FRONT.jpg",
+          "CAM_FRONT_LEFT": "samples/CAM_FRONT_LEFT/scene-0012__CAM_FRONT_LEFT.jpg",
+          "CAM_FRONT_RIGHT": "samples/CAM_FRONT_RIGHT/scene-0012__CAM_FRONT_RIGHT.jpg",
+          "CAM_BACK": "samples/CAM_BACK/scene-0012__CAM_BACK.jpg",
+          "CAM_BACK_LEFT": "samples/CAM_BACK_LEFT/scene-0012__CAM_BACK_LEFT.jpg",
+          "CAM_BACK_RIGHT": "samples/CAM_BACK_RIGHT/scene-0012__CAM_BACK_RIGHT.jpg"
+        },
+        "key_object_infos": {
+          "<c1,CAM_FRONT,110.0,50.0>": {
+            "Category": "pedestrian",
+            "Visual_description": "a pedestrian near the crosswalk"
+          }
+        },
+        "QA": {
+          "perception": [
+            {
+              "Q": "What objects are visible in the front camera?",
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+            }
+          ],
+          "prediction": [
+            {
+              "Q": "What will the pedestrian do next?",
+              "A": "The pedestrian will keep walking."
+            }
+          ],
+          "planning": [
+            {
+              "Q": "What is the safe action for the ego vehicle?",
+              "A": "Slow down and yield."
+            }
+          ],
+          "behavior": [
+            {
+              "Q": "What is the ego vehicle's current behavior?",
+              "A": "Decelerating."
+            }
+          ]
+        }
+      },
+      "2014488bf62e086e88631a84c66b28d5": {
+        "image_paths": {
+          "CAM_FRONT": "samples/CAM_FRONT/scene-0012__CAM_FRONT.jpg",
+          "CAM_FRONT_LEFT": "samples/CAM_FRONT_LEFT/scene-0012__CAM_FRONT_LEFT.jpg",
+          "CAM_FRONT_RIGHT": "samples/CAM_FRONT_RIGHT/scene-0012__CAM_FRONT_RIGHT.jpg",
+          "CAM_BACK": "samples/CAM_BACK/scene-0012__CAM_BACK.jpg",
+          "CAM_BACK_LEFT": "samples/CAM_BACK_LEFT/scene-0012__CAM_BACK_LEFT.jpg",
+          "CAM_BACK_RIGHT": "samples/CAM_BACK_RIGHT/scene-0012__does_not_exist.jpg"
+        },
+        "key_object_infos": {},
+        "QA": {
+          "perception": [
+            {
+              "Q": "What objects are visible in the front camera?",
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+            }
+          ],
+          "prediction": [
+            {
+              "Q": "What will the pedestrian do next?",
+              "A": "The pedestrian will keep walking."
+            }
+          ],
+          "planning": [
+            {
+              "Q": "What is the safe action for the ego vehicle?",
+              "A": "Slow down and yield."
+            }
+          ],
+          "behavior": [
+            {
+              "Q": "What is the ego vehicle's current behavior?",
+              "A": "Decelerating."
+            }
+          ]
+        }
+      }
+    }
+  }
+}

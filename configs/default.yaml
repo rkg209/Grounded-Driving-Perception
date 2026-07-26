@@ -39,6 +39,8 @@ vlm: # Stage 2 — a SEPARATE model from the detector (H6)
   max_new_tokens: 128
   lora_r: 16
   lora_alpha: 32
+  num_views: 1 # CAM_FRONT only; all six views still stored per-record
+  max_pixels: null # processor default
 
 grounding: # Spec 04 — self-built grounding eval set, the sanctioned H9 exception
   iou_threshold: 0.5
@@ -47,3 +49,12 @@ grounding: # Spec 04 — self-built grounding eval set, the sanctioned H9 except
   qualifier_types: [spatial, attribute, relational, negative]
   phrases_path: data/grounding_eval/phrases.json
   overlays_dir: data/grounding_eval/overlays
+
+drivelm: # Spec 06 — Stage-2 data, official nuScenes scene split. Points at the fixture by default.
+  annotations: tests/fixtures/mini_drivelm/v1_1_mini_nus.json
+  nuscenes_root: tests/fixtures/mini_drivelm
+  scene_meta: tests/fixtures/mini_drivelm/scene.json
+  out_dir: data/drivelm
+  train_scene_fraction: 1.0
+  subsample_seed: 42
+  categories: [perception, prediction, planning, behavior]

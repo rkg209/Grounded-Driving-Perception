@@ -11,6 +11,7 @@ from PIL import Image
 
 from gdp.config import BDD100K_CLASSES, load_config
 from gdp.data import Box, load_dataset
+from gdp.paths import resolve
 
 
 @pytest.fixture(scope="module")
@@ -89,3 +90,76 @@ def test_fixture_is_labelled_as_synthetic(dataset):
     cfg = load_config("configs/default.yaml")
     raw = json.loads(cfg.dataset.annotations_path().read_text())
     assert "NOT real BDD100K" in raw["info"]["description"]
+
+
+@pytest.fixture(scope="module")
+def drivelm_cfg():
+    return load_config("configs/default.yaml").drivelm
+
+
+@pytest.fixture(scope="module")
+def drivelm_raw(drivelm_cfg):
+    return json.loads(drivelm_cfg.annotations_path().read_text())
+
+
+@pytest.fixture(scope="module")
+def drivelm_scene_meta(drivelm_cfg):
+    return json.loads(drivelm_cfg.scene_meta_path().read_text())
+
+
+def test_mini_drivelm_has_four_scenes_two_per_split(drivelm_raw, drivelm_scene_meta):
+    from gdp.data.splits import load_official_splits
+
+    assert len(drivelm_raw) == 4
+    names = {rec["name"] for rec in drivelm_scene_meta}
+    assert names == {"scene-0001", "scene-0002", "scene-0003", "scene-0012"}
+
+    splits = load_official_splits()
+    resolved = {
+        "train": [n for n in names if n in splits.train],
+        "val": [n for n in names if n in splits.val],
+    }
+    assert sorted(resolved["train"]) == ["scene-0001", "scene-0002"]
+    assert sorted(resolved["val"]) == ["scene-0003", "scene-0012"]
+
+
+def test_mini_drivelm_all_four_categories_present(drivelm_raw):
+    from gdp.config import DRIVELM_CATEGORIES
+
+    for scene in drivelm_raw.values():
+        for frame in scene["key_frames"].values():
+            assert set(DRIVELM_CATEGORIES) <= set(frame["QA"].keys())
+
+
+def test_mini_drivelm_every_drop_reason_is_represented(drivelm_raw):
+    reasons_seen = set()
+    for scene in drivelm_raw.values():
+        for frame in scene["key_frames"].values():
+            if len(frame["image_paths"]) < 6:
+                reasons_seen.add("missing_image_path")
+            for rel in frame["image_paths"].values():
+                if not (resolve("tests/fixtures/mini_drivelm") / rel).is_file():
+                    reasons_seen.add("image_file_missing")
+            for cat, qas in frame["QA"].items():
+                if cat not in ("perception", "prediction", "planning", "behavior"):
+                    reasons_seen.add("unknown_category")
+                for qa in qas:
+                    if not qa["Q"].strip() or not qa["A"].strip():
+                        reasons_seen.add("missing_qa_text")
+
+    assert reasons_seen == {
+        "missing_image_path",
+        "image_file_missing",
+        "unknown_category",
+        "missing_qa_text",
+    }
+
+
+def test_mini_drivelm_object_tag_present_in_answer(drivelm_raw):
+    found = False
+    for scene in drivelm_raw.values():
+        for frame in scene["key_frames"].values():
+            for qa in frame["QA"]["perception"]:
+                if "<c1,CAM_FRONT," in qa["A"]:
+                    found = True
+    assert found
