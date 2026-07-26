@@ -166,8 +166,12 @@ def test_vqa_score_and_failures_end_to_end_fixture_chain(val_jsonl_path):
         ],
     )
     output = result.stdout + str(result.stderr or "")
-    if result.exit_code != 0 and "vendored scorer deps not installed" in output:
-        pytest.skip("vendored scorer deps not installed")
+    # The vendored scorer's deps (`language_evaluation`, `openai`) are an optional extra and
+    # `language_evaluation` isn't even on PyPI, so a bare `uv sync` cannot have them. Match the
+    # message `gdp.vqa.official` actually emits — an earlier guess at this string was wrong, and
+    # the clean-clone reproduction (spec 10 task 10) is what caught it.
+    if result.exit_code != 0 and "language_evaluation" in output:
+        pytest.skip("vendored scorer deps not installed (see docs/drivelm-eval-scorer-deps.md)")
     assert result.exit_code == 0, output
     assert "-> " in output.strip().splitlines()[-1]
 

@@ -134,6 +134,7 @@ def test_mode_note_flags_free_text_as_unmeasured():
 
 
 def test_build_app_with_stub_backends_returns_blocks():
+    pytest.importorskip("gradio")  # optional `demo` extra — a bare `uv sync` does not have it
     cfg = load_config("configs/default.yaml", "configs/demo.yaml")
     registry = ModelRegistry(DetectorConfig(), device="cpu")
     from gdp.demo.app import build_app
@@ -146,6 +147,7 @@ def test_build_app_with_stub_backends_returns_blocks():
 def test_build_app_weights_textbox_reflects_the_actual_vlm_passed_in():
     """H8 regression: the "Weights" field must come from `vlm.weights_badge()`, not a hardcoded
     `None` — a fine-tuned adapter passed via `--adapter` must not be silently badged as base."""
+    pytest.importorskip("gradio")  # optional `demo` extra — a bare `uv sync` does not have it
     cfg = load_config("configs/default.yaml", "configs/demo.yaml")
     registry = ModelRegistry(DetectorConfig(), device="cpu")
     from gdp.demo.app import build_app
