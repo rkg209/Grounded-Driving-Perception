@@ -1,0 +1,417 @@
+{
+  "snapshot_version": 1,
+  "created": "2026-07-26T15:49:04.330356+00:00",
+  "git_sha": "497eeec59b60aa3a9ba45a20018e2634362dbfa7",
+  "stages": {
+    "stage1_detection": {
+      "status": "pending",
+      "title": "Stage 1 \u00b7 detection mAP",
+      "spec": "03-finetune",
+      "blocker": "spec 03 cluster fine-tuning run (`sbatch scripts/slurm/finetune_detector.slurm`), which itself needs spec 02's zero-shot baseline on real BDD100K",
+      "reason": "no `runs/03-finetune/*/comparison.json` exists yet \u2014 blocked on: spec 03 cluster fine-tuning run (`sbatch scripts/slurm/finetune_detector.slurm`), which itself needs spec 02's zero-shot baseline on real BDD100K",
+      "source": null,
+      "created": null,
+      "sources": {},
+      "data": {}
+    },
+    "grounding": {
+      "status": "pending",
+      "title": "Stage 1 \u00b7 grounding accuracy",
+      "spec": "04-grounding",
+      "blocker": "spec 04 hand-authoring of the 150\u2013300 real phrases, then `sbatch scripts/slurm/grounding_eval.slurm`",
+      "reason": "no `runs/04-grounding/*/grounding_comparison.json` exists yet \u2014 blocked on: spec 04 hand-authoring of the 150\u2013300 real phrases, then `sbatch scripts/slurm/grounding_eval.slurm`",
+      "source": null,
+      "created": null,
+      "sources": {},
+      "data": {}
+    },
+    "deployment": {
+      "status": "synthetic",
+      "title": "Deployment \u00b7 accuracy vs latency",
+      "spec": "05-deploy",
+      "blocker": "spec 05 re-run on the real BDD100K val split (today's only run used `tests/fixtures/mini_bdd/`)",
+      "reason": "last run was on tests/fixtures/ \u2014 not a result (H7)",
+      "source": "runs/05-deploy/20260725-163907/metrics.json",
+      "sha256": "85112e2e19cfa8946c61660a423203e97ccf18eee085c9c152cd724a6e1d24f8",
+      "created": "2026-07-25T11:47:16.905057+00:00",
+      "sources": {
+        "metrics": {
+          "path": "runs/05-deploy/20260725-163907/metrics.json",
+          "sha256": "85112e2e19cfa8946c61660a423203e97ccf18eee085c9c152cd724a6e1d24f8"
+        },
+        "latency": {
+          "path": "runs/05-deploy/20260725-163907/latency.json",
+          "sha256": "c34a3ecf6832fe2babcd150059548e3e2e7682f5e0f56090009afe26e04a9533"
+        }
+      },
+      "data": {
+        "metrics": {
+          "dataset": "mini_bdd",
+          "num_images": 4,
+          "is_synthetic": true,
+          "fixed_prompt": true,
+          "quantization": "dynamic",
+          "prompt": "pedestrian. rider. car. truck. bus. train. motorcycle. bicycle. traffic light. traffic sign.",
+          "variants": {
+            "fp32-pt": {
+              "map": 0.0,
+              "map50": 0.0,
+              "per_class_ap": {
+                "pedestrian": 0.0,
+                "rider": 0.0,
+                "car": 0.0,
+                "truck": 0.0,
+                "bus": 0.0,
+                "train": 0.0,
+                "motorcycle": 0.0,
+                "bicycle": 0.0,
+                "traffic light": 0.0,
+                "traffic sign": 0.0
+              }
+            },
+            "fp32-onnx": {
+              "map": 0.0,
+              "map50": 0.0,
+              "per_class_ap": {
+                "pedestrian": 0.0,
+                "rider": 0.0,
+                "car": 0.0,
+                "truck": 0.0,
+                "bus": 0.0,
+                "train": 0.0,
+                "motorcycle": 0.0,
+                "bicycle": 0.0,
+                "traffic light": 0.0,
+                "traffic sign": 0.0
+              }
+            },
+            "int8-onnx": {
+              "map": 0.045,
+              "map50": 0.05,
+              "per_class_ap": {
+                "pedestrian": 0.0,
+                "rider": 0.0,
+                "car": 0.0,
+                "truck": 0.0,
+                "bus": 0.0,
+                "train": 0.0,
+                "motorcycle": 0.0,
+                "bicycle": 0.0,
+                "traffic light": 0.0,
+                "traffic sign": 0.45
+              }
+            }
+          },
+          "git_sha": "a4c2d4dbbde0ab2bfa7f4d5680904f75f81e94d1",
+          "created": "2026-07-25T11:47:16.905057+00:00"
+        },
+        "latency": {
+          "hardware": {
+            "onnxruntime_version": "1.28.0",
+            "torch_version": "2.13.0",
+            "processor": "arm",
+            "thread_count": 10,
+            "batch_size": 1,
+            "image_size": [
+              360,
+              640
+            ]
+          },
+          "variants": {
+            "fp32-pt": {
+              "variant": "fp32-pt",
+              "p50": 1.658165209024446,
+              "p95": 2.635825000004843,
+              "p99": 3.128110124991508,
+              "fps": 0.5566087666080478,
+              "peak_rss_bytes": 5026185216,
+              "warmup_iters": 50,
+              "timed_iters": 200,
+              "interleaved": true
+            },
+            "fp32-onnx": {
+              "variant": "fp32-onnx",
+              "p50": 3.2440236669790465,
+              "p95": 4.831831584015163,
+              "p99": 5.400490999978501,
+              "fps": 0.2841240715758573,
+              "peak_rss_bytes": 5026185216,
+              "warmup_iters": 50,
+              "timed_iters": 200,
+              "interleaved": true
+            },
+            "int8-onnx": {
+              "variant": "int8-onnx",
+              "p50": 3.1417780829942785,
+              "p95": 4.192950916010886,
+              "p99": 4.9672587089880835,
+              "fps": 0.2972618075859075,
+              "peak_rss_bytes": 5026185216,
+              "warmup_iters": 50,
+              "timed_iters": 200,
+              "interleaved": true
+            }
+          },
+          "git_sha": "a4c2d4dbbde0ab2bfa7f4d5680904f75f81e94d1",
+          "created": "2026-07-25T11:45:52.090276+00:00"
+        }
+      }
+    },
+    "stage2_vqa": {
+      "status": "synthetic",
+      "title": "Stage 2 \u00b7 DriveLM VQA",
+      "spec": "08-vqa",
+      "blocker": "spec 08 cluster evaluation run (`sbatch scripts/slurm/vqa_eval.slurm`), which itself needs spec 06's real DriveLM conversion and spec 07's LoRA adapter",
+      "reason": "last run was on tests/fixtures/ \u2014 not a result (H7)",
+      "source": "runs/08-vqa/20260726-204745/comparison.json",
+      "sha256": "3cc1c53e0ef78f91b1447fcefaadd82fddc87501952904929bfffe3135865799",
+      "created": "2026-07-26T15:17:46.668589+00:00",
+      "sources": {
+        "comparison": {
+          "path": "runs/08-vqa/20260726-204745/comparison.json",
+          "sha256": "3cc1c53e0ef78f91b1447fcefaadd82fddc87501952904929bfffe3135865799"
+        },
+        "metrics": {
+          "path": "runs/08-vqa/20260726-204745/metrics.json",
+          "sha256": "a02578bbd3e68b78d72eed021af06da5fbc7573e6d7754ed099331762dd53322"
+        }
+      },
+      "data": {
+        "comparison": {
+          "val_jsonl_sha256": "1cc41c8cd2e65b256bb51394f4fa3c6ef445f5650f8d4384a75b594fc7917783",
+          "num_items": 8,
+          "generation": {
+            "max_new_tokens": 128,
+            "do_sample": false,
+            "num_beams": 1
+          },
+          "scorer_sha256": "9ae51084bdbbf9e50e574e242ce68af12df21a332cd6d54de5e846caec34cc58",
+          "final_score_composition": "final_score = 0.4 * (chatgpt / 100) + 0.2 * (Bleu_1/4/3 + Bleu_2/4/3 + Bleu_3/4/3 + Bleu_4/4/3 + ROUGE_L/3 + CIDEr/10/3) + 0.2 * (match / 100) + 0.2 * accuracy [weights: chatgpt=0.4, language=0.2, match=0.2, accuracy=0.2] (third_party/drivelm/evaluation.py __main__ block, commit 266b570f1c746a4cad7f8f0317eb3c2f99141512)",
+          "final_score": null,
+          "base_created": "2026-07-26T15:17:46.293072+00:00",
+          "finetuned_created": "2026-07-26T15:17:46.668589+00:00",
+          "overall_accuracy": {
+            "before": 0.5,
+            "after": 1.0,
+            "delta": 0.5
+          },
+          "per_category_accuracy": {
+            "perception": {
+              "before": null,
+              "after": null,
+              "delta": null
+            },
+            "prediction": {
+              "before": null,
+              "after": null,
+              "delta": null
+            },
+            "planning": {
+              "before": null,
+              "after": null,
+              "delta": null
+            },
+            "behavior": {
+              "before": 0.5,
+              "after": 1.0,
+              "delta": 0.5
+            }
+          },
+          "regressions": []
+        },
+        "metrics": {
+          "models": {
+            "base": {
+              "model_role": "base",
+              "num_items": 8,
+              "is_synthetic": true,
+              "split_provenance": "nuscenes.utils.splits (vendored) \u2014 src/gdp/data/nuscenes_splits.json",
+              "caveat": "DriveLM-nuScenes' challenge val/test answers are withheld behind EvalAI. This split instead partitions DriveLM's answered train file by the official nuScenes v1.0-trainval scene lists (700 train / 150 val) \u2014 the canonical published nuScenes partition, applied scene-clean. It is NOT the DriveLM leaderboard split.",
+              "comparable_to_leaderboard": false,
+              "hallucination": {
+                "caveat": "self-defined diagnostic, not part of DriveLM's official metric",
+                "overall": {
+                  "n_items": 8,
+                  "n_emitted_tags": 3,
+                  "n_ungrounded_tags": 1,
+                  "ungrounded_tag_rate": 0.3333333333333333,
+                  "items_with_hallucination": 1,
+                  "items_with_hallucination_rate": 0.125
+                },
+                "per_category": {
+                  "perception": {
+                    "n_items": 2,
+                    "n_emitted_tags": 3,
+                    "n_ungrounded_tags": 1,
+                    "ungrounded_tag_rate": 0.3333333333333333,
+                    "items_with_hallucination": 1,
+                    "items_with_hallucination_rate": 0.5
+                  },
+                  "prediction": {
+                    "n_items": 2,
+                    "n_emitted_tags": 0,
+                    "n_ungrounded_tags": 0,
+                    "ungrounded_tag_rate": null,
+                    "items_with_hallucination": 0,
+                    "items_with_hallucination_rate": 0.0
+                  },
+                  "planning": {
+                    "n_items": 2,
+                    "n_emitted_tags": 0,
+                    "n_ungrounded_tags": 0,
+                    "ungrounded_tag_rate": null,
+                    "items_with_hallucination": 0,
+                    "items_with_hallucination_rate": 0.0
+                  },
+                  "behavior": {
+                    "n_items": 2,
+                    "n_emitted_tags": 0,
+                    "n_ungrounded_tags": 0,
+                    "ungrounded_tag_rate": null,
+                    "items_with_hallucination": 0,
+                    "items_with_hallucination_rate": 0.0
+                  }
+                }
+              },
+              "overall": {
+                "n_items": 8,
+                "submetrics": {
+                  "computed": [
+                    {
+                      "name": "accuracy",
+                      "n_items": 2,
+                      "score": 0.5
+                    },
+                    {
+                      "name": "language",
+                      "n_items": 2,
+                      "score": {
+                        "val/Bleu_1": 0.7499999999765626,
+                        "val/Bleu_2": 0.7416198486856183,
+                        "val/Bleu_3": 0.7199783208987264,
+                        "val/Bleu_4": 0.692271134721942,
+                        "val/ROUGE_L": 0.8927038626609443,
+                        "val/CIDEr": 0.0
+                      }
+                    }
+                  ],
+                  "omitted": [
+                    {
+                      "name": "chatgpt",
+                      "n_items": 2,
+                      "reason": "requires a paid, non-deterministic OpenAI API judge; not run (H2/H9)",
+                      "effect": "the official composite final_score cannot be computed"
+                    },
+                    {
+                      "name": "match",
+                      "n_items": 2,
+                      "reason": "eval_match is fused with the same paid ChatGPT judge inside the vendored scorer (eval_chatGPT called internally) and cannot be computed without it",
+                      "effect": "the official composite final_score cannot be computed"
+                    }
+                  ]
+                },
+                "final_score": null
+              },
+              "git_sha": "497eeec59b60aa3a9ba45a20018e2634362dbfa7",
+              "created": "2026-07-26T15:17:46.293072+00:00"
+            },
+            "finetuned": {
+              "model_role": "finetuned",
+              "num_items": 8,
+              "is_synthetic": true,
+              "split_provenance": "nuscenes.utils.splits (vendored) \u2014 src/gdp/data/nuscenes_splits.json",
+              "caveat": "DriveLM-nuScenes' challenge val/test answers are withheld behind EvalAI. This split instead partitions DriveLM's answered train file by the official nuScenes v1.0-trainval scene lists (700 train / 150 val) \u2014 the canonical published nuScenes partition, applied scene-clean. It is NOT the DriveLM leaderboard split.",
+              "comparable_to_leaderboard": false,
+              "hallucination": {
+                "caveat": "self-defined diagnostic, not part of DriveLM's official metric",
+                "overall": {
+                  "n_items": 8,
+                  "n_emitted_tags": 2,
+                  "n_ungrounded_tags": 0,
+                  "ungrounded_tag_rate": 0.0,
+                  "items_with_hallucination": 0,
+                  "items_with_hallucination_rate": 0.0
+                },
+                "per_category": {
+                  "perception": {
+                    "n_items": 2,
+                    "n_emitted_tags": 2,
+                    "n_ungrounded_tags": 0,
+                    "ungrounded_tag_rate": 0.0,
+                    "items_with_hallucination": 0,
+                    "items_with_hallucination_rate": 0.0
+                  },
+                  "prediction": {
+                    "n_items": 2,
+                    "n_emitted_tags": 0,
+                    "n_ungrounded_tags": 0,
+                    "ungrounded_tag_rate": null,
+                    "items_with_hallucination": 0,
+                    "items_with_hallucination_rate": 0.0
+                  },
+                  "planning": {
+                    "n_items": 2,
+                    "n_emitted_tags": 0,
+                    "n_ungrounded_tags": 0,
+                    "ungrounded_tag_rate": null,
+                    "items_with_hallucination": 0,
+                    "items_with_hallucination_rate": 0.0
+                  },
+                  "behavior": {
+                    "n_items": 2,
+                    "n_emitted_tags": 0,
+                    "n_ungrounded_tags": 0,
+                    "ungrounded_tag_rate": null,
+                    "items_with_hallucination": 0,
+                    "items_with_hallucination_rate": 0.0
+                  }
+                }
+              },
+              "overall": {
+                "n_items": 8,
+                "submetrics": {
+                  "computed": [
+                    {
+                      "name": "accuracy",
+                      "n_items": 2,
+                      "score": 1.0
+                    },
+                    {
+                      "name": "language",
+                      "n_items": 2,
+                      "score": {
+                        "val/Bleu_1": 0.9999999999166667,
+                        "val/Bleu_2": 0.9999999999147727,
+                        "val/Bleu_3": 0.9999999999126262,
+                        "val/Bleu_4": 0.9999999999101641,
+                        "val/ROUGE_L": 1.0,
+                        "val/CIDEr": 0.0
+                      }
+                    }
+                  ],
+                  "omitted": [
+                    {
+                      "name": "chatgpt",
+                      "n_items": 2,
+                      "reason": "requires a paid, non-deterministic OpenAI API judge; not run (H2/H9)",
+                      "effect": "the official composite final_score cannot be computed"
+                    },
+                    {
+                      "name": "match",
+                      "n_items": 2,
+                      "reason": "eval_match is fused with the same paid ChatGPT judge inside the vendored scorer (eval_chatGPT called internally) and cannot be computed without it",
+                      "effect": "the official composite final_score cannot be computed"
+                    }
+                  ]
+                },
+                "final_score": null
+              },
+              "git_sha": "497eeec59b60aa3a9ba45a20018e2634362dbfa7",
+              "created": "2026-07-26T15:17:46.668589+00:00"
+            }
+          }
+        }
+      }
+    }
+  }
+}

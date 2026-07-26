@@ -67,6 +67,15 @@ from gdp.ground.sample import sample_and_render
 from gdp.logging import get_logger
 from gdp.paths import git_sha, repo_root, resolve, run_dir
 from gdp.probe.openvocab import load_probe_images, load_probe_phrases, run_probe, write_probe_result
+from gdp.report import (
+    SNAPSHOT_PATH,
+    build_snapshot,
+    check_blocks,
+    inject_blocks,
+    load_snapshot,
+    render_all,
+    write_snapshot,
+)
 from gdp.seed import select_device, set_seed
 from gdp.train.dataset import DetectionCollator, SampleDataset
 from gdp.train.trainer import DetectorTrainer
@@ -125,6 +134,14 @@ deploy_app = typer.Typer(
 vqa_app = typer.Typer(
     name="vqa",
     help="Stage 2 — driving-scene VQA with Qwen2.5-VL (a separate model from `detect`, H6).",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+report_app = typer.Typer(
+    name="report",
+    help="Spec 10 — snapshot `runs/*/metrics.json` and render the README's tables from it. "
+    "No metric in the README is ever typed by hand.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -1919,11 +1936,80 @@ def demo(
     launch(cfg, registry=registry, vlm=vlm, server_port=cfg.demo.server_port, share=cfg.demo.share)
 
 
+@report_app.command("snapshot")
+def report_snapshot(
+    out: Annotated[
+        str | None,
+        typer.Option("--out", help=f"Snapshot path (default {SNAPSHOT_PATH})."),
+    ] = None,
+) -> None:
+    """Copy the fields the README's tables need out of `runs/` into a committed snapshot.
+
+    `runs/` is gitignored, so this is the only way a clean clone can check that a published number
+    came from a file the code wrote. A stage whose run was computed on `tests/fixtures/` is stamped
+    `synthetic` and renders as pending — a fixture number is never a result (H7).
+    """
+    snapshot = build_snapshot()
+    path = write_snapshot(snapshot, path=resolve(out) if out else None)
+    for name, entry in snapshot["stages"].items():
+        suffix = f" — {entry['reason']}" if entry.get("reason") else f" ({entry['source']})"
+        typer.echo(f"  {name}: {entry['status']}{suffix}")
+    typer.echo(f"snapshot -> {path}")
+
+
+@report_app.command("render")
+def report_render(
+    check: Annotated[
+        bool,
+        typer.Option(
+            "--check",
+            help="Do not write; exit 1 if the README's generated blocks differ from the snapshot.",
+        ),
+    ] = False,
+    snapshot: Annotated[
+        str | None, typer.Option("--snapshot", help=f"Snapshot path (default {SNAPSHOT_PATH}).")
+    ] = None,
+    readme: Annotated[
+        str | None, typer.Option("--readme", help="README path (default README.md).")
+    ] = None,
+) -> None:
+    """Render the snapshot into README.md's `<!-- BEGIN GENERATED: … -->` blocks.
+
+    Reads the snapshot only, never `runs/` — so the README a clean clone renders is the README a
+    clean clone has. `--check` is the "generated, not typed" gate: it fails on a hand-edited number.
+    """
+    readme_path = resolve(readme) if readme else resolve("README.md")
+    if not readme_path.is_file():
+        _die(f"no README at {readme_path}")
+
+    blocks = render_all(load_snapshot(resolve(snapshot) if snapshot else None))
+    text = readme_path.read_text()
+
+    if check:
+        drifted = check_blocks(text, blocks)
+        if drifted:
+            _die(
+                "README generated blocks are out of date with docs/metrics_snapshot.json: "
+                + ", ".join(drifted)
+                + " — run `uv run gdp report render` (never edit a generated block by hand)"
+            )
+        typer.echo(f"README generated blocks match the snapshot ({len(blocks)} blocks)")
+        return
+
+    updated = inject_blocks(text, blocks)
+    if updated == text:
+        typer.echo(f"README already up to date ({len(blocks)} blocks) -> {readme_path}")
+        return
+    readme_path.write_text(updated)
+    typer.echo(f"rendered {len(blocks)} blocks -> {readme_path}")
+
+
 app.add_typer(data_app, name="data")
 app.add_typer(train_app, name="train")
 app.add_typer(ground_app, name="ground")
 app.add_typer(deploy_app, name="deploy")
 app.add_typer(vqa_app, name="vqa")
+app.add_typer(report_app, name="report")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,24 @@
+{
+  "phrases_sha256": "b7f1c0d9e2a34567890abcdef1234567890abcdef1234567890abcdef1234567",
+  "num_phrases": 212,
+  "box_threshold": 0.25,
+  "zeroshot_model_id": "IDEA-Research/grounding-dino-tiny",
+  "finetuned_model_id": "runs/03-finetune/20260801-101500/checkpoint-4000",
+  "zeroshot_created": "2026-08-01T09:40:00+00:00",
+  "finetuned_created": "2026-08-01T10:20:00+00:00",
+  "accuracy_zeroshot": 0.4104,
+  "accuracy_finetuned": 0.5825,
+  "accuracy_delta": 0.1721,
+  "positives_accuracy_zeroshot": 0.3810,
+  "positives_accuracy_finetuned": 0.5714,
+  "negatives_accuracy_zeroshot": 0.6250,
+  "negatives_accuracy_finetuned": 0.6000,
+  "per_type": {
+    "action": {"before": 0.3333, "after": 0.5000, "delta": 0.1667},
+    "colour": {"before": 0.5000, "after": 0.4500, "delta": -0.0500},
+    "spatial": {"before": 0.4000, "after": 0.6250, "delta": 0.2250}
+  },
+  "regressions": ["colour"],
+  "is_self_built_benchmark": true,
+  "caveat": "Small, self-built grounding evaluation set (H9's sanctioned exception, CLAUDE.md §2) — not an official benchmark. Legitimate only because construction, bias, and drop rate are documented in data/grounding_eval/construction.md."
+}

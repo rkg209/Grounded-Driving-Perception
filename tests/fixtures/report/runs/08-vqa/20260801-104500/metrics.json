@@ -1,0 +1,100 @@
+{
+  "models": {
+    "base": {
+      "model_role": "base",
+      "num_items": 4213,
+      "is_synthetic": false,
+      "val_jsonl_sha256": "1cc41c8cd2e65b256bb51394f4fa3c6ef445f5650f8d4384a75b594fc7917783",
+      "scorer_sha256": "9ae51084bdbbf9e50e574e242ce68af12df21a332cd6d54de5e846caec34cc58",
+      "final_score_composition": "final_score = 0.4 * (chatgpt / 100) + 0.2 * (language) + 0.2 * (match / 100) + 0.2 * accuracy",
+      "split_provenance": "nuscenes.utils.splits (vendored) — src/gdp/data/nuscenes_splits.json",
+      "caveat": "DriveLM-nuScenes' challenge val/test answers are withheld behind EvalAI. This split instead partitions DriveLM's answered train file by the official nuScenes v1.0-trainval scene lists (700 train / 150 val) — the canonical published nuScenes partition, applied scene-clean. It is NOT the DriveLM leaderboard split.",
+      "comparable_to_leaderboard": false,
+      "hallucination": {
+        "caveat": "self-defined diagnostic, not part of DriveLM's official metric",
+        "overall": {
+          "n_items": 4213,
+          "n_emitted_tags": 1802,
+          "n_ungrounded_tags": 431,
+          "ungrounded_tag_rate": 0.2392,
+          "items_with_hallucination": 388,
+          "items_with_hallucination_rate": 0.0921
+        }
+      },
+      "overall": {
+        "n_items": 4213,
+        "submetrics": {
+          "computed": [
+            {"name": "accuracy", "n_items": 1204, "score": 0.4312},
+            {"name": "language", "n_items": 3009, "score": {"val/Bleu_1": 0.61, "val/ROUGE_L": 0.58, "val/CIDEr": 0.44}}
+          ],
+          "omitted": [
+            {
+              "name": "chatgpt",
+              "n_items": 3009,
+              "reason": "requires a paid, non-deterministic OpenAI API judge; not run (H2/H9)",
+              "effect": "the official composite final_score cannot be computed"
+            },
+            {
+              "name": "match",
+              "n_items": 3009,
+              "reason": "eval_match is fused with the same paid ChatGPT judge inside the vendored scorer (eval_chatGPT called internally) and cannot be computed without it",
+              "effect": "the official composite final_score cannot be computed"
+            }
+          ]
+        },
+        "final_score": null
+      },
+      "git_sha": "0000000000000000000000000000000000000000",
+      "created": "2026-08-01T10:40:00+00:00"
+    },
+    "finetuned": {
+      "model_role": "finetuned",
+      "num_items": 4213,
+      "is_synthetic": false,
+      "val_jsonl_sha256": "1cc41c8cd2e65b256bb51394f4fa3c6ef445f5650f8d4384a75b594fc7917783",
+      "scorer_sha256": "9ae51084bdbbf9e50e574e242ce68af12df21a332cd6d54de5e846caec34cc58",
+      "final_score_composition": "final_score = 0.4 * (chatgpt / 100) + 0.2 * (language) + 0.2 * (match / 100) + 0.2 * accuracy",
+      "split_provenance": "nuscenes.utils.splits (vendored) — src/gdp/data/nuscenes_splits.json",
+      "caveat": "DriveLM-nuScenes' challenge val/test answers are withheld behind EvalAI. This split instead partitions DriveLM's answered train file by the official nuScenes v1.0-trainval scene lists (700 train / 150 val) — the canonical published nuScenes partition, applied scene-clean. It is NOT the DriveLM leaderboard split.",
+      "comparable_to_leaderboard": false,
+      "hallucination": {
+        "caveat": "self-defined diagnostic, not part of DriveLM's official metric",
+        "overall": {
+          "n_items": 4213,
+          "n_emitted_tags": 1911,
+          "n_ungrounded_tags": 302,
+          "ungrounded_tag_rate": 0.158,
+          "items_with_hallucination": 271,
+          "items_with_hallucination_rate": 0.0643
+        }
+      },
+      "overall": {
+        "n_items": 4213,
+        "submetrics": {
+          "computed": [
+            {"name": "accuracy", "n_items": 1204, "score": 0.5708},
+            {"name": "language", "n_items": 3009, "score": {"val/Bleu_1": 0.69, "val/ROUGE_L": 0.66, "val/CIDEr": 0.71}}
+          ],
+          "omitted": [
+            {
+              "name": "chatgpt",
+              "n_items": 3009,
+              "reason": "requires a paid, non-deterministic OpenAI API judge; not run (H2/H9)",
+              "effect": "the official composite final_score cannot be computed"
+            },
+            {
+              "name": "match",
+              "n_items": 3009,
+              "reason": "eval_match is fused with the same paid ChatGPT judge inside the vendored scorer (eval_chatGPT called internally) and cannot be computed without it",
+              "effect": "the official composite final_score cannot be computed"
+            }
+          ]
+        },
+        "final_score": null
+      },
+      "git_sha": "0000000000000000000000000000000000000000",
+      "created": "2026-08-01T10:45:00+00:00"
+    }
+  }
+}

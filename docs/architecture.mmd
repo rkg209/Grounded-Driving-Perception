@@ -1,0 +1,19 @@
+flowchart TB
+    subgraph S1["Stage 1 · Grounding-DINO (fine-tuned on BDD100K)"]
+        direction TB
+        A1["image + text query"] --> A2["open-vocabulary detector"]
+        A2 --> A3["boxes + scores<br/>measured by mAP / grounding accuracy"]
+    end
+
+    subgraph S2["Stage 2 · Qwen2.5-VL-3B (LoRA fine-tuned on DriveLM)"]
+        direction TB
+        B1["image + question"] --> B2["vision-language model"]
+        B2 --> B3["natural-language answer<br/>measured by DriveLM's official metric"]
+    end
+
+    subgraph P["Presentation · demo only, no accuracy number"]
+        C1["scene report — every line labelled<br/>[detector] / [VLM] / [heuristic]"]
+    end
+
+    A3 --> C1
+    B3 --> C1

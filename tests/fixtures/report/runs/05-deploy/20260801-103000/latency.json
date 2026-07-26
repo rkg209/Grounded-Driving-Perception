@@ -1,0 +1,47 @@
+{
+  "hardware": {
+    "onnxruntime_version": "1.28.0",
+    "torch_version": "2.13.0",
+    "processor": "arm",
+    "thread_count": 10,
+    "batch_size": 1,
+    "image_size": [360, 640]
+  },
+  "variants": {
+    "fp32-pt": {
+      "variant": "fp32-pt",
+      "p50": 0.412,
+      "p95": 0.501,
+      "p99": 0.588,
+      "fps": 2.42,
+      "peak_rss_bytes": 5026185216,
+      "warmup_iters": 50,
+      "timed_iters": 200,
+      "interleaved": true
+    },
+    "fp32-onnx": {
+      "variant": "fp32-onnx",
+      "p50": 0.338,
+      "p95": 0.402,
+      "p99": 0.455,
+      "fps": 2.95,
+      "peak_rss_bytes": 4831838208,
+      "warmup_iters": 50,
+      "timed_iters": 200,
+      "interleaved": true
+    },
+    "int8-onnx": {
+      "variant": "int8-onnx",
+      "p50": 0.244,
+      "p95": 0.298,
+      "p99": 0.341,
+      "fps": 4.09,
+      "peak_rss_bytes": 3221225472,
+      "warmup_iters": 50,
+      "timed_iters": 200,
+      "interleaved": true
+    }
+  },
+  "git_sha": "0000000000000000000000000000000000000000",
+  "created": "2026-08-01T10:31:00+00:00"
+}

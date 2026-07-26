@@ -1,0 +1,28 @@
+{
+  "dataset": "bdd100k",
+  "num_images": 500,
+  "is_synthetic": false,
+  "fixed_prompt": true,
+  "export_path": "runs/05-deploy/20260801-103000/model.onnx",
+  "quantization": "dynamic",
+  "prompt": "pedestrian. rider. car. truck. bus. train. motorcycle. bicycle. traffic light. traffic sign.",
+  "variants": {
+    "fp32-pt": {
+      "map": 0.3482,
+      "map50": 0.5614,
+      "per_class_ap": {"car": 0.5121, "pedestrian": 0.3218}
+    },
+    "fp32-onnx": {
+      "map": 0.3479,
+      "map50": 0.5610,
+      "per_class_ap": {"car": 0.5118, "pedestrian": 0.3215}
+    },
+    "int8-onnx": {
+      "map": 0.3301,
+      "map50": 0.5402,
+      "per_class_ap": {"car": 0.4903, "pedestrian": 0.3007}
+    }
+  },
+  "git_sha": "0000000000000000000000000000000000000000",
+  "created": "2026-08-01T10:30:00+00:00"
+}

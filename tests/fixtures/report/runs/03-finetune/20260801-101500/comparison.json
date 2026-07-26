@@ -1,0 +1,23 @@
+{
+  "dataset": "bdd100k",
+  "split": "val",
+  "num_images": 10000,
+  "box_threshold": 0.25,
+  "zeroshot_model_id": "IDEA-Research/grounding-dino-tiny",
+  "finetuned_model_id": "runs/03-finetune/20260801-101500/checkpoint-4000",
+  "zeroshot_created": "2026-08-01T09:10:00+00:00",
+  "finetuned_created": "2026-08-01T10:15:00+00:00",
+  "map_zeroshot": 0.2114,
+  "map_finetuned": 0.3482,
+  "map_delta": 0.1368,
+  "map50_zeroshot": 0.3721,
+  "map50_finetuned": 0.5614,
+  "map50_delta": 0.1893,
+  "per_class_ap": {
+    "bus": {"before": 0.3011, "after": 0.2874, "delta": -0.0137},
+    "car": {"before": 0.3402, "after": 0.5121, "delta": 0.1719},
+    "pedestrian": {"before": 0.1503, "after": 0.3218, "delta": 0.1715},
+    "traffic light": {"before": 0.0812, "after": 0.2604, "delta": 0.1792}
+  },
+  "regressions": ["bus"]
+}

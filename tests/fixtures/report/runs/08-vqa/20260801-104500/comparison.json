@@ -1,0 +1,18 @@
+{
+  "val_jsonl_sha256": "1cc41c8cd2e65b256bb51394f4fa3c6ef445f5650f8d4384a75b594fc7917783",
+  "num_items": 4213,
+  "generation": {"max_new_tokens": 128, "do_sample": false, "num_beams": 1},
+  "scorer_sha256": "9ae51084bdbbf9e50e574e242ce68af12df21a332cd6d54de5e846caec34cc58",
+  "final_score_composition": "final_score = 0.4 * (chatgpt / 100) + 0.2 * (Bleu_1/4/3 + Bleu_2/4/3 + Bleu_3/4/3 + Bleu_4/4/3 + ROUGE_L/3 + CIDEr/10/3) + 0.2 * (match / 100) + 0.2 * accuracy [weights: chatgpt=0.4, language=0.2, match=0.2, accuracy=0.2] (third_party/drivelm/evaluation.py __main__ block, commit 266b570f1c746a4cad7f8f0317eb3c2f99141512)",
+  "final_score": null,
+  "base_created": "2026-08-01T10:40:00+00:00",
+  "finetuned_created": "2026-08-01T10:45:00+00:00",
+  "overall_accuracy": {"before": 0.4312, "after": 0.5708, "delta": 0.1396},
+  "per_category_accuracy": {
+    "perception": {"before": 0.4501, "after": 0.6102, "delta": 0.1601},
+    "prediction": {"before": null, "after": null, "delta": null},
+    "planning": {"before": 0.3904, "after": 0.5211, "delta": 0.1307},
+    "behavior": {"before": 0.4110, "after": 0.3902, "delta": -0.0208}
+  },
+  "regressions": ["behavior"]
+}
