@@ -119,10 +119,10 @@ naming this explicitly (`gdp.data.drivelm_stats.CAVEAT`) — never silently. See
         },
         "key_object_infos": { "<c1,CAM_FRONT,1088.3,497.5>": { "...": "..." } },
         "QA": {
-          "perception": [{"Q": "What objects...", "A": "There is a car <c1,CAM_FRONT,...>."}],
-          "prediction": [{"Q": "...", "A": "..."}],
-          "planning": [{"Q": "...", "A": "..."}],
-          "behavior": [{"Q": "...", "A": "..."}]
+          "perception": [{"Q": "What objects...", "A": "There is a car <c1,CAM_FRONT,...>.", "tag": [2]}],
+          "prediction": [{"Q": "...", "A": "...", "tag": [0]}],
+          "planning": [{"Q": "...", "A": "...", "tag": [1]}],
+          "behavior": [{"Q": "...", "A": "...", "tag": [0]}]
         }
       }
     }
@@ -143,6 +143,11 @@ dropped (H7):**
   the converter copies DriveLM's key verbatim (`gdp.config.DRIVELM_CATEGORIES`).
 - A `key_frames` entry missing any of the six `image_paths` camera keys — `missing_image_path`.
 - An `image_paths` entry whose file doesn't exist under `nuscenes_root` — `image_file_missing`.
+- A QA pair with a missing or empty `"tag"` — `missing_tag`. `tag` is DriveLM's own
+  scorer-routing field (a `list[int]`; see `third_party/drivelm/PROVENANCE.md`'s routing table) —
+  spec 08's official scorer cannot route an item without one, so it travels through
+  `DriveLMRecord.tag` verbatim, byte-for-byte like the QA text, never inferred from `category`
+  (confirmed: real DriveLM QA has both `tag=[0]` and `tag=[2]` items *within* `perception`).
 - A scene token absent from `scene.json`, or a scene name in neither official split list — a
   **hard error** (`KeyError`), not a drop: silently dropping scenes would shrink the split every
   later number is computed on (spec 06 design decision 2).

@@ -316,6 +316,39 @@ class VLMTrainingConfig:
             raise ValueError(f"vlm_training.max_seq_len must be positive, got {self.max_seq_len}")
 
 
+@dataclass
+class VQAEvalConfig:
+    """Spec 08 — base-vs-fine-tuned VQA evaluation. Decoding is pinned here, not inherited from a
+    checkpoint's `generation_config`, so base and fine-tuned runs are provably comparable (H8)."""
+
+    max_new_tokens: int = 128
+    do_sample: bool = False
+    num_beams: int = 1
+    # Left-padded batching is a later optimisation (spec 08 design decision 3), not a v1 risk.
+    batch_size: int = 1
+    # >= 30 per spec 08 acceptance criterion 4; sampled deterministically with cfg.seed.
+    failure_sample_size: int = 40
+
+    def validate(self) -> None:
+        if self.do_sample:
+            raise ValueError(
+                "vqa_eval.do_sample must be False — H8 (CLAUDE.md §2) requires the base and "
+                "fine-tuned runs to be comparable, and a sampled base run vs. a greedy "
+                "fine-tuned run (or vice versa) is not a comparison."
+            )
+        if self.max_new_tokens <= 0:
+            raise ValueError(f"vqa_eval.max_new_tokens must be positive, got {self.max_new_tokens}")
+        if self.num_beams <= 0:
+            raise ValueError(f"vqa_eval.num_beams must be positive, got {self.num_beams}")
+        if self.batch_size <= 0:
+            raise ValueError(f"vqa_eval.batch_size must be positive, got {self.batch_size}")
+        if self.failure_sample_size < 30:
+            raise ValueError(
+                "vqa_eval.failure_sample_size must be >= 30 (spec 08 acceptance criterion 4), "
+                f"got {self.failure_sample_size}"
+            )
+
+
 VALID_QUANTIZATION = ("dynamic", "static")
 
 
@@ -355,6 +388,7 @@ class Config:
     deploy: DeployConfig = field(default_factory=DeployConfig)
     drivelm: DriveLMConfig = field(default_factory=DriveLMConfig)
     vlm_training: VLMTrainingConfig = field(default_factory=VLMTrainingConfig)
+    vqa_eval: VQAEvalConfig = field(default_factory=VQAEvalConfig)
 
     def validate(self) -> Config:
         if self.device not in VALID_DEVICES:
@@ -384,6 +418,7 @@ class Config:
         self.deploy.validate()
         self.drivelm.validate()
         self.vlm_training.validate()
+        self.vqa_eval.validate()
         return self
 
 

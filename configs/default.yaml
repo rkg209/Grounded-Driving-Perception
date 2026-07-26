@@ -76,3 +76,10 @@ drivelm: # Spec 06 — Stage-2 data, official nuScenes scene split. Points at th
   train_scene_fraction: 1.0
   subsample_seed: 42
   categories: [perception, prediction, planning, behavior]
+
+vqa_eval: # Spec 08 — base-vs-fine-tuned VQA eval. Decoding pinned here so both runs are comparable (H8).
+  max_new_tokens: 128
+  do_sample: false # greedy — a sampled base run vs. a greedy fine-tuned run is not a comparison
+  num_beams: 1
+  batch_size: 1 # left-padded batching is a later optimisation, not a v1 risk
+  failure_sample_size: 40 # >= 30 per spec 08 acceptance criterion 4

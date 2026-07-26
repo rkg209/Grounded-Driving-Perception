@@ -39,7 +39,13 @@ VIEW_ORDER: tuple[str, ...] = (
     "CAM_BACK_RIGHT",
 )
 
-DROP_REASONS = ("missing_qa_text", "unknown_category", "missing_image_path", "image_file_missing")
+DROP_REASONS = (
+    "missing_qa_text",
+    "unknown_category",
+    "missing_image_path",
+    "image_file_missing",
+    "missing_tag",
+)
 
 _OBJECT_TAG_RE = re.compile(r"<([^,>]+),([^,>]+),(-?[\d.]+),(-?[\d.]+)>")
 
@@ -67,6 +73,12 @@ class DriveLMRecord:
     question: str
     answer: str
     object_tags: list[dict[str, Any]]
+    # DriveLM's own scorer-routing tag (e.g. [0], [2]) — NOT the same thing as `object_tags` above
+    # (those are parsed <cX,CAM,x,y> references out of the answer text). This is what
+    # third_party/drivelm/evaluation.py's `evaluation_suit.forward(tag, ...)` uses to route an item
+    # to accuracy/chatgpt/language/match (spec 08 design decision 6) — it varies within a category,
+    # so it cannot be inferred from `category` alone and must travel with the record verbatim (H2).
+    tag: list[int]
     image_paths: dict[str, str]
     view_order: list[str]
     official_split: str
@@ -138,12 +150,16 @@ def convert_drivelm(
                     stats.qa_total += 1
                     question = qa.get("Q", "")
                     answer = qa.get("A", "")
+                    tag = qa.get("tag")
 
                     if category not in categories:
                         stats.dropped["unknown_category"] += 1
                         continue
                     if not question.strip() or not answer.strip():
                         stats.dropped["missing_qa_text"] += 1
+                        continue
+                    if not tag:
+                        stats.dropped["missing_tag"] += 1
                         continue
                     if missing_views:
                         stats.dropped["missing_image_path"] += 1
@@ -160,6 +176,7 @@ def convert_drivelm(
                         question=question,
                         answer=answer,
                         object_tags=parse_object_tags(answer),
+                        tag=list(tag),
                         image_paths=dict(image_paths),
                         view_order=list(VIEW_ORDER),
                         official_split=split,

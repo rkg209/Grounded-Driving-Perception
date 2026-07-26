@@ -169,6 +169,26 @@ def test_missing_config_file_raises():
             lambda c: setattr(c.vlm_training, "max_seq_len", 0),
             "vlm_training.max_seq_len must be positive",
         ),
+        (
+            lambda c: setattr(c.vqa_eval, "do_sample", True),
+            "vqa_eval.do_sample must be False",
+        ),
+        (
+            lambda c: setattr(c.vqa_eval, "max_new_tokens", 0),
+            "vqa_eval.max_new_tokens must be positive",
+        ),
+        (
+            lambda c: setattr(c.vqa_eval, "num_beams", 0),
+            "vqa_eval.num_beams must be positive",
+        ),
+        (
+            lambda c: setattr(c.vqa_eval, "batch_size", 0),
+            "vqa_eval.batch_size must be positive",
+        ),
+        (
+            lambda c: setattr(c.vqa_eval, "failure_sample_size", 29),
+            "vqa_eval.failure_sample_size must be >= 30",
+        ),
     ],
 )
 def test_validation_rejects_bad_values(mutate, match):
@@ -230,6 +250,24 @@ def test_drivelm_overlay_only_changes_drivelm():
     assert cfg.drivelm.nuscenes_root == "data/nuscenes"
     assert cfg.detector.model_id == "IDEA-Research/grounding-dino-tiny"
     assert cfg.seed == 42
+
+
+def test_vqa_eval_defaults_pin_greedy_decoding():
+    """H8: base and fine-tuned runs must decode identically — round-trip proves the default
+    config never accidentally turns sampling on."""
+    cfg = load_config()
+    assert cfg.vqa_eval.do_sample is False
+    assert cfg.vqa_eval.num_beams == 1
+    assert cfg.vqa_eval.max_new_tokens == 128
+    assert cfg.vqa_eval.failure_sample_size >= 30
+
+
+def test_vqa_eval_overlay_only_changes_vqa_eval():
+    cfg = load_config("configs/default.yaml", "configs/vqa_eval.yaml")
+    assert cfg.vqa_eval.do_sample is False
+    assert cfg.vqa_eval.failure_sample_size == 40
+    assert cfg.vlm.model_id == "Qwen/Qwen2.5-VL-3B-Instruct"
+    assert cfg.drivelm.categories == ["perception", "prediction", "planning", "behavior"]
 
 
 def test_detector_prompt_format():

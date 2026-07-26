@@ -25,6 +25,7 @@ def _sample_record() -> DriveLMRecord:
         question="What objects are visible?",
         answer="There is a pedestrian <c1,CAM_FRONT,100.0,50.0> near the crosswalk.",
         object_tags=[{"ref": "c1", "camera": "CAM_FRONT", "x": 100.0, "y": 50.0}],
+        tag=[2],
         image_paths={
             "CAM_FRONT": "samples/CAM_FRONT/a.jpg",
             "CAM_FRONT_LEFT": "samples/CAM_FRONT_LEFT/a.jpg",

@@ -25,6 +25,17 @@ dependencies = [
 [project.scripts]
 gdp = "gdp.cli:app"
 
+[project.optional-dependencies]
+# Deps for the vendored DriveLM challenge scorer (third_party/drivelm/evaluation.py), spec 08.
+# `language_evaluation` isn't on PyPI — install per its own README:
+#   uv pip install "git+https://github.com/bckim92/language-evaluation.git"
+#   uv run python -c "import language_evaluation; language_evaluation.download('coco')"
+# `openai` is required only to *import* gpt_eval.GPTEvaluation (the vendored evaluation_suit
+# constructs it unconditionally); this repo never calls it — see third_party/drivelm/PROVENANCE.md.
+drivelm-eval = [
+    "openai>=1.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -41,6 +52,9 @@ packages = ["src/gdp"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+# third_party/ is vendored code (e.g. the DriveLM challenge scorer, spec 08) — never edited, so
+# never linted or reformatted by us. See third_party/drivelm/PROVENANCE.md.
+extend-exclude = ["third_party"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

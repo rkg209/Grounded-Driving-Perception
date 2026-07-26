@@ -193,20 +193,40 @@ def _drivelm_qa(scene_name: str) -> dict[str, list[dict[str, str]]]:
     byte-verbatim in the answer text (spec 06 design decision 4) — the converter must copy them
     unmodified, never rewrite or strip them (H2)."""
     tag = f"<c1,CAM_FRONT,{100 + len(scene_name)}.0,50.0>"
+    # DriveLM's own scorer-routing `tag` (a list[int]; see gdp.data.drivelm.DriveLMRecord.tag) —
+    # NOT the `<c1,CAM_FRONT,x,y>` object-reference tag above. Mirrors the real DriveLM QA schema's
+    # per-item routing (spec 08 design decision 6): perception carries [2] (language), prediction
+    # [3] (match), planning [1] (chatgpt), behavior [0] (accuracy) — a plausible real mix, not an
+    # exhaustive one; task 4's fixture predictions add more variety where needed.
     return {
         "perception": [
             {
                 "Q": "What objects are visible in the front camera?",
                 "A": f"There is a pedestrian {tag} near the crosswalk.",
+                "tag": [2],
             }
         ],
         "prediction": [
-            {"Q": "What will the pedestrian do next?", "A": "The pedestrian will keep walking."}
+            {
+                "Q": "What will the pedestrian do next?",
+                "A": "The pedestrian will keep walking.",
+                "tag": [3],
+            }
         ],
         "planning": [
-            {"Q": "What is the safe action for the ego vehicle?", "A": "Slow down and yield."}
+            {
+                "Q": "What is the safe action for the ego vehicle?",
+                "A": "Slow down and yield.",
+                "tag": [1],
+            }
         ],
-        "behavior": [{"Q": "What is the ego vehicle's current behavior?", "A": "Decelerating."}],
+        "behavior": [
+            {
+                "Q": "What is the ego vehicle's current behavior?",
+                "A": "Decelerating.",
+                "tag": [0],
+            }
+        ],
     }
 
 
@@ -262,6 +282,15 @@ def _make_mini_drivelm() -> None:
         if scene_name == "scene-0002":
             # DROP_REASONS["unknown_category"]: key outside DRIVELM_CATEGORIES.
             clean_qa["misc"] = [{"Q": "Off-taxonomy question?", "A": "Off-taxonomy answer."}]
+            # DROP_REASONS["missing_tag"]: real DriveLM QA always carries a `tag`; a QA item
+            # without one cannot be routed to the vendored scorer's accuracy/chatgpt/language/
+            # match buckets (spec 08 design decision 6), so it is a counted drop, not a silent one.
+            clean_qa["behavior"].append(
+                {
+                    "Q": "What should the ego vehicle do at the junction?",
+                    "A": "Proceed with caution.",
+                }
+            )
         if scene_name == "scene-0003":
             # DROP_REASONS["missing_image_path"]: a second frame missing a camera key entirely.
             bad_token = _token(scene_name + "_frame_missing_view")

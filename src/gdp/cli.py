@@ -21,10 +21,12 @@ from transformers import (
 )
 
 from gdp import __version__
-from gdp.config import Config, load_config
+from gdp.config import DRIVELM_CATEGORIES, Config, load_config
 from gdp.data.bdd100k import DEFAULT_IMAGE_HEIGHT, DEFAULT_IMAGE_WIDTH, convert_bdd_to_coco
 from gdp.data.core import load_dataset
 from gdp.data.drivelm import convert_drivelm, subsample_scenes, write_jsonl, write_subsample_json
+from gdp.data.drivelm_stats import CAVEAT as DRIVELM_CAVEAT
+from gdp.data.drivelm_stats import SPLIT_PROVENANCE as DRIVELM_SPLIT_PROVENANCE
 from gdp.data.drivelm_stats import build_drivelm_stats
 from gdp.data.splits import load_official_splits, load_scene_meta
 from gdp.data.stats import build_stats, write_stats
@@ -68,11 +70,17 @@ from gdp.seed import select_device, set_seed
 from gdp.train.dataset import DetectionCollator, SampleDataset
 from gdp.train.trainer import DetectorTrainer
 from gdp.vqa.chat import load_jsonl
+from gdp.vqa.compare import build_vqa_comparison, write_vqa_comparison
 from gdp.vqa.dataset import DriveLMVQADataset, VQACollator
+from gdp.vqa.failures import sample_failures, write_failures_md
 from gdp.vqa.generate import answer as vqa_answer
 from gdp.vqa.generate import load_adapter
+from gdp.vqa.hallucination import hallucination_stats
 from gdp.vqa.labels import processor_pixel_budget
 from gdp.vqa.lora import LM_TARGET_RE, attach_lora, trainable_parameter_summary
+from gdp.vqa.official import OfficialScorerUnavailable
+from gdp.vqa.predict import load_predictions, predict_split
+from gdp.vqa.score import annotate_per_item, build_vqa_metrics, write_per_item, write_vqa_metrics
 from gdp.vqa.trainer import VLMTrainer
 
 app = typer.Typer(
@@ -929,6 +937,245 @@ def vqa_generate(
     typer.echo("demo, not a result (H2) — never scored against record.answer")
     typer.echo(f"question: {record.question}")
     typer.echo(f"generated: {generated} -> {adapter}")
+
+
+_VALID_MODEL_ROLES = ("base", "finetuned")
+
+
+@vqa_app.command("predict")
+def vqa_predict(
+    val_jsonl: Annotated[
+        str, typer.Option("--val-jsonl", help="DriveLM val.jsonl from `gdp data prepare-drivelm`.")
+    ],
+    model_role: Annotated[
+        str, typer.Option("--model-role", help="'base' or 'finetuned' — stamped onto every row.")
+    ],
+    out: Annotated[
+        str, typer.Option("--out", help="predictions.jsonl to append to (resumable, task 3).")
+    ],
+    config: ConfigOpt = None,
+    adapter: Annotated[
+        str | None,
+        typer.Option("--adapter", help="LoRA adapter dir — required when --model-role finetuned."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Smoke run: only generate the first N not-yet-done items."),
+    ] = None,
+) -> None:
+    """Generate one model's predictions over one split (spec 08 task 3) — GPU/cluster-expensive,
+    resumable at item granularity. Never scores anything — `gdp vqa score` owns every number."""
+    if model_role not in _VALID_MODEL_ROLES:
+        _die(f"--model-role must be one of {_VALID_MODEL_ROLES}, got {model_role!r}")
+    if model_role == "finetuned" and not adapter:
+        _die("--model-role finetuned requires --adapter")
+
+    cfg = _load(config)
+    set_seed(cfg.seed)
+    device = select_device(cfg.device)
+
+    records = load_jsonl(resolve(val_jsonl))
+
+    processor_kwargs = {}
+    if cfg.vlm.max_pixels is not None:
+        processor_kwargs["max_pixels"] = cfg.vlm.max_pixels
+    processor = AutoProcessor.from_pretrained(cfg.vlm.model_id, **processor_kwargs)
+    if model_role == "finetuned":
+        model = load_adapter(cfg.vlm.model_id, adapter, device=device)
+    else:
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(cfg.vlm.model_id)
+        model.to(device)
+        model.eval()
+
+    out_path = resolve(out)
+    result_path = predict_split(
+        records,
+        processor,
+        model,
+        cfg=cfg.vqa_eval,
+        nuscenes_root=cfg.drivelm.nuscenes_root_path(),
+        device=device,
+        model_role=model_role,
+        out_path=out_path,
+        limit=limit,
+    )
+    typer.echo(f"{model_role}: {len(records)} val item(s) in split -> {result_path}")
+
+
+def _score_one_model(
+    role: str, predictions_path: Path, records: list, cfg: Config, val_jsonl_path: Path
+) -> tuple[dict, list[dict]]:
+    predictions = load_predictions(predictions_path)
+    roles_present = {row["model_role"] for row in predictions}
+    if roles_present != {role}:
+        _die(
+            f"{predictions_path}: expected all rows to have model_role={role!r}, "
+            f"found {roles_present}"
+        )
+
+    is_synthetic = any(r.is_synthetic for r in records)
+    metrics = build_vqa_metrics(
+        model_role=role,
+        predictions=predictions,
+        records=records,
+        cfg=cfg.vqa_eval,
+        gdp_cfg=cfg,
+        val_jsonl_path=val_jsonl_path,
+        caveat=DRIVELM_CAVEAT,
+        split_provenance=DRIVELM_SPLIT_PROVENANCE,
+        is_synthetic=is_synthetic,
+    )
+    metrics["hallucination"] = hallucination_stats(predictions)
+    per_item_rows = annotate_per_item(predictions)
+    return metrics, per_item_rows
+
+
+@vqa_app.command("score")
+def vqa_score(
+    val_jsonl: Annotated[str, typer.Option("--val-jsonl", help="DriveLM val.jsonl (task 3/5).")],
+    config: ConfigOpt = None,
+    predictions: Annotated[
+        str | None, typer.Option("--predictions", help="Score a single model's predictions.jsonl.")
+    ] = None,
+    base_predictions: Annotated[
+        str | None,
+        typer.Option("--base-predictions", help="Base model's predictions.jsonl."),
+    ] = None,
+    finetuned_predictions: Annotated[
+        str | None,
+        typer.Option("--finetuned-predictions", help="Fine-tuned model's predictions.jsonl."),
+    ] = None,
+) -> None:
+    """Score `predictions.jsonl` against DriveLM's official split with the vendored scorer
+    (spec 08 tasks 4-7) — no metric arithmetic is ours (H2/H9). One `--predictions` writes a
+    single-model `metrics.json`; both `--base-predictions`/`--finetuned-predictions` together also
+    write `comparison.json` (design decision 8) — the fine-tuned number never ships without the
+    base one beside it (H8)."""
+    if predictions and (base_predictions or finetuned_predictions):
+        _die("--predictions is exclusive with --base-predictions/--finetuned-predictions")
+    if bool(base_predictions) != bool(finetuned_predictions):
+        _die("--base-predictions and --finetuned-predictions must be given together")
+    if not predictions and not base_predictions:
+        _die("pass --predictions, or both --base-predictions and --finetuned-predictions")
+
+    cfg = _load(config)
+    val_path = resolve(val_jsonl)
+    records = load_jsonl(val_path)
+    out_dir = run_dir("08-vqa")
+
+    try:
+        if predictions:
+            preds_path = resolve(predictions)
+            role = {row["model_role"] for row in load_predictions(preds_path)}
+            if len(role) != 1:
+                _die(f"{preds_path}: predictions.jsonl must have a single model_role, found {role}")
+            metrics, per_item_rows = _score_one_model(
+                role.pop(), preds_path, records, cfg, val_path
+            )
+            metrics_path = write_vqa_metrics(metrics, out_dir=out_dir)
+            per_item_path = write_per_item(per_item_rows, out_dir=out_dir)
+            typer.echo(f"per-item: {per_item_path}")
+            typer.echo(f"{metrics['model_role']}: {metrics['num_items']} item(s) -> {metrics_path}")
+        else:
+            base_metrics, base_rows = _score_one_model(
+                "base", resolve(base_predictions), records, cfg, val_path
+            )
+            ft_metrics, ft_rows = _score_one_model(
+                "finetuned", resolve(finetuned_predictions), records, cfg, val_path
+            )
+            combined = {"models": {"base": base_metrics, "finetuned": ft_metrics}}
+            metrics_path = write_vqa_metrics(combined, out_dir=out_dir)
+            write_per_item(base_rows, out_dir=out_dir, name="per_item_base.jsonl")
+            ft_per_item_path = write_per_item(
+                ft_rows, out_dir=out_dir, name="per_item_finetuned.jsonl"
+            )
+            comparison = build_vqa_comparison(base_metrics, ft_metrics)
+            comparison_path = write_vqa_comparison(comparison, out_dir=out_dir)
+            typer.echo(f"per-item (finetuned): {ft_per_item_path}")
+            typer.echo(
+                f"accuracy: {comparison['overall_accuracy']['before']} -> "
+                f"{comparison['overall_accuracy']['after']}; regressions: "
+                f"{comparison['regressions']} -> {comparison_path}"
+            )
+    except (ValueError, OfficialScorerUnavailable) as exc:
+        _die(str(exc))
+
+
+@vqa_app.command("failures")
+def vqa_failures(
+    per_item: Annotated[
+        str, typer.Option("--per-item", help="Fine-tuned run's per_item.jsonl (from `vqa score`).")
+    ],
+    config: ConfigOpt = None,
+    base_per_item: Annotated[
+        str | None,
+        typer.Option("--base-per-item", help="Base run's per_item.jsonl, for side-by-side."),
+    ] = None,
+    val_jsonl: Annotated[
+        str | None, typer.Option("--val-jsonl", help="Defaults to drivelm.out_dir/val.jsonl.")
+    ] = None,
+    error_on: Annotated[
+        str | None,
+        typer.Option(
+            "--error-on", help="Per-item field naming a failure; default finetuned_exact_match."
+        ),
+    ] = None,
+) -> None:
+    """Sample `vqa_eval.failure_sample_size` failures, stratified across categories, and scaffold
+    `failures.md` for human annotation (spec 08 task 8) — the commentary is never auto-generated
+    (H7)."""
+    cfg = _load(config)
+    val_path = resolve(val_jsonl) if val_jsonl else cfg.drivelm.out_dir_path() / "val.jsonl"
+    if not val_path.is_file():
+        _die(f"val jsonl not found: {val_path}")
+    records = {r.qa_id: r for r in load_jsonl(val_path)}
+
+    ft_rows = {row["qa_id"]: row for row in load_predictions(resolve(per_item))}
+    base_rows = (
+        {row["qa_id"]: row for row in load_predictions(resolve(base_per_item))}
+        if base_per_item
+        else {}
+    )
+
+    merged = []
+    for qa_id, ft_row in ft_rows.items():
+        record = records.get(qa_id)
+        if record is None:
+            continue
+        base_row = base_rows.get(qa_id, {})
+        merged.append(
+            {
+                "qa_id": qa_id,
+                "category": ft_row["category"],
+                "question": ft_row["question"],
+                "gt_answer": ft_row["gt_answer"],
+                "base_prediction": base_row.get("prediction", ft_row["prediction"]),
+                "finetuned_prediction": ft_row["prediction"],
+                "finetuned_exact_match": ft_row.get("exact_match"),
+                "image_path": record.image_paths["CAM_FRONT"],
+            }
+        )
+
+    error_on_field = error_on or "finetuned_exact_match"
+    has_scores = any(row.get(error_on_field) is not None for row in merged)
+    error_rule = (
+        f"per-item field {error_on_field!r} where available, else prediction != GT"
+        if has_scores
+        else "prediction != GT (no per-item score available for this sub-metric)"
+    )
+
+    sample = sample_failures(
+        merged,
+        seed=cfg.seed,
+        n=cfg.vqa_eval.failure_sample_size,
+        categories=DRIVELM_CATEGORIES,
+        error_on=error_on_field,
+    )
+    out_dir = run_dir("08-vqa")
+    path = write_failures_md(
+        sample, out_dir=out_dir, images_root=cfg.drivelm.nuscenes_root_path(), error_rule=error_rule
+    )
+    typer.echo(f"{len(sample)} failure(s) sampled ({error_rule}) -> {path}")
 
 
 @app.command()

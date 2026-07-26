@@ -20,7 +20,10 @@
           "perception": [
             {
               "Q": "What objects are visible in the front camera?",
-              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk.",
+              "tag": [
+                2
+              ]
             },
             {
               "Q": "What is behind the ego vehicle?",
@@ -30,19 +33,28 @@
           "prediction": [
             {
               "Q": "What will the pedestrian do next?",
-              "A": "The pedestrian will keep walking."
+              "A": "The pedestrian will keep walking.",
+              "tag": [
+                3
+              ]
             }
           ],
           "planning": [
             {
               "Q": "What is the safe action for the ego vehicle?",
-              "A": "Slow down and yield."
+              "A": "Slow down and yield.",
+              "tag": [
+                1
+              ]
             }
           ],
           "behavior": [
             {
               "Q": "What is the ego vehicle's current behavior?",
-              "A": "Decelerating."
+              "A": "Decelerating.",
+              "tag": [
+                0
+              ]
             }
           ]
         }
@@ -70,25 +82,41 @@
           "perception": [
             {
               "Q": "What objects are visible in the front camera?",
-              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk.",
+              "tag": [
+                2
+              ]
             }
           ],
           "prediction": [
             {
               "Q": "What will the pedestrian do next?",
-              "A": "The pedestrian will keep walking."
+              "A": "The pedestrian will keep walking.",
+              "tag": [
+                3
+              ]
             }
           ],
           "planning": [
             {
               "Q": "What is the safe action for the ego vehicle?",
-              "A": "Slow down and yield."
+              "A": "Slow down and yield.",
+              "tag": [
+                1
+              ]
             }
           ],
           "behavior": [
             {
               "Q": "What is the ego vehicle's current behavior?",
-              "A": "Decelerating."
+              "A": "Decelerating.",
+              "tag": [
+                0
+              ]
+            },
+            {
+              "Q": "What should the ego vehicle do at the junction?",
+              "A": "Proceed with caution."
             }
           ],
           "misc": [
@@ -122,25 +150,37 @@
           "perception": [
             {
               "Q": "What objects are visible in the front camera?",
-              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk.",
+              "tag": [
+                2
+              ]
             }
           ],
           "prediction": [
             {
               "Q": "What will the pedestrian do next?",
-              "A": "The pedestrian will keep walking."
+              "A": "The pedestrian will keep walking.",
+              "tag": [
+                3
+              ]
             }
           ],
           "planning": [
             {
               "Q": "What is the safe action for the ego vehicle?",
-              "A": "Slow down and yield."
+              "A": "Slow down and yield.",
+              "tag": [
+                1
+              ]
             }
           ],
           "behavior": [
             {
               "Q": "What is the ego vehicle's current behavior?",
-              "A": "Decelerating."
+              "A": "Decelerating.",
+              "tag": [
+                0
+              ]
             }
           ]
         }
@@ -158,25 +198,37 @@
           "perception": [
             {
               "Q": "What objects are visible in the front camera?",
-              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk.",
+              "tag": [
+                2
+              ]
             }
           ],
           "prediction": [
             {
               "Q": "What will the pedestrian do next?",
-              "A": "The pedestrian will keep walking."
+              "A": "The pedestrian will keep walking.",
+              "tag": [
+                3
+              ]
             }
           ],
           "planning": [
             {
               "Q": "What is the safe action for the ego vehicle?",
-              "A": "Slow down and yield."
+              "A": "Slow down and yield.",
+              "tag": [
+                1
+              ]
             }
           ],
           "behavior": [
             {
               "Q": "What is the ego vehicle's current behavior?",
-              "A": "Decelerating."
+              "A": "Decelerating.",
+              "tag": [
+                0
+              ]
             }
           ]
         }
@@ -204,25 +256,37 @@
           "perception": [
             {
               "Q": "What objects are visible in the front camera?",
-              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk.",
+              "tag": [
+                2
+              ]
             }
           ],
           "prediction": [
             {
               "Q": "What will the pedestrian do next?",
-              "A": "The pedestrian will keep walking."
+              "A": "The pedestrian will keep walking.",
+              "tag": [
+                3
+              ]
             }
           ],
           "planning": [
             {
               "Q": "What is the safe action for the ego vehicle?",
-              "A": "Slow down and yield."
+              "A": "Slow down and yield.",
+              "tag": [
+                1
+              ]
             }
           ],
           "behavior": [
             {
               "Q": "What is the ego vehicle's current behavior?",
-              "A": "Decelerating."
+              "A": "Decelerating.",
+              "tag": [
+                0
+              ]
             }
           ]
         }
@@ -241,25 +305,37 @@
           "perception": [
             {
               "Q": "What objects are visible in the front camera?",
-              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk."
+              "A": "There is a pedestrian <c1,CAM_FRONT,110.0,50.0> near the crosswalk.",
+              "tag": [
+                2
+              ]
             }
           ],
           "prediction": [
             {
               "Q": "What will the pedestrian do next?",
-              "A": "The pedestrian will keep walking."
+              "A": "The pedestrian will keep walking.",
+              "tag": [
+                3
+              ]
             }
           ],
           "planning": [
             {
               "Q": "What is the safe action for the ego vehicle?",
-              "A": "Slow down and yield."
+              "A": "Slow down and yield.",
+              "tag": [
+                1
+              ]
             }
           ],
           "behavior": [
             {
               "Q": "What is the ego vehicle's current behavior?",
-              "A": "Decelerating."
+              "A": "Decelerating.",
+              "tag": [
+                0
+              ]
             }
           ]
         }

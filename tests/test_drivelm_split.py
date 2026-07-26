@@ -22,6 +22,7 @@ def _record(scene_token: str, split: str) -> DriveLMRecord:
         question="Q?",
         answer="A.",
         object_tags=[],
+        tag=[0],
         image_paths={},
         view_order=[],
         official_split=split,

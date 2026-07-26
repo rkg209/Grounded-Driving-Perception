@@ -1,0 +1,14 @@
+# Spec 08 — base-vs-fine-tuned VQA evaluation on DriveLM's official split. Overlay onto
+# configs/default.yaml (+ configs/drivelm.yaml for real data), e.g.:
+#   uv run gdp vqa score -c configs/default.yaml -c configs/vqa_eval.yaml --val-jsonl ...
+#
+# Every number here is a deliberate choice, not a magic constant buried in predict.py/score.py
+# (CLAUDE.md §8). Decoding is pinned and identical for the base and fine-tuned model so the two
+# runs are provably comparable — validate() refuses do_sample=True and names H8 if it's set.
+
+vqa_eval:
+  max_new_tokens: 128 # mirrors vlm.max_new_tokens; recorded in metrics.json, not inferred from the checkpoint
+  do_sample: false # greedy decoding — spec 08 Approach 2; sampling would make base vs. fine-tuned non-comparable
+  num_beams: 1 # greedy, no beam search — keeps generation cost predictable across thousands of val items
+  batch_size: 1 # left-padded batching is a later optimisation, not a v1 risk (design decision 3)
+  failure_sample_size: 40 # >= 30 (spec 08 acceptance criterion 4), sampled deterministically with cfg.seed
