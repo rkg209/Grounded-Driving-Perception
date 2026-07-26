@@ -4,7 +4,7 @@ Two halves, and they are labelled differently on purpose.
 
 | Half | Where it runs | Status |
 |---|---|---|
-| **Laptop path** — install, tests, smoke, both fixture data pipelines, README render check | Apple M4, 16 GB, MPS. No GPU, no dataset, no network beyond `uv sync` | **Executable, and every run is recorded.** `bash scripts/repro_clean_clone.sh`; the exit codes it printed are logged in `progress_report.md` |
+| **Laptop path** — install, tests, smoke, both fixture data pipelines, README render check | Apple M4, 16 GB, MPS. No GPU, no dataset, no network beyond `uv sync` | **Executed from a clean clone; all steps exited 0.** `bash scripts/repro_clean_clone.sh` — the run and the defects its first attempt found are logged in `progress_report.md` |
 | **Cluster path** — detector fine-tuning, VLM LoRA fine-tuning, full-split evaluation | IITB SLURM cluster | **Documented, not executed.** No run has happened yet; every wall-clock figure below is a `#SBATCH --time` *request*, not a measurement |
 
 The distinction matters more than it looks. Claiming an unrun reproduction is a claim like any

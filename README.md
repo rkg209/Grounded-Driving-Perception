@@ -224,8 +224,11 @@ bash scripts/repro_clean_clone.sh
 ```
 
 It clones `HEAD` into a temporary directory and runs `make install` → `make test` → `make smoke` →
-both fixture data pipelines → `gdp report render --check`, printing each step's exit code. Every
-execution of it is recorded in `progress_report.md`, with the exit codes it actually printed.
+both fixture data pipelines → `gdp report render --check`, printing each step's exit code.
+
+**It has been run, and all seven steps exited 0** (492 passed / 17 skipped in the clean clone —
+the skips are the two optional extras a bare `uv sync` does not install). The run, and the three
+test failures the first attempt found, are recorded in `progress_report.md`.
 
 The cluster half (detector fine-tuning, VLM LoRA fine-tuning, full-split evaluation) is documented
 in [`docs/reproduction.md`](docs/reproduction.md) with exact `sbatch` commands, configs, dataset
