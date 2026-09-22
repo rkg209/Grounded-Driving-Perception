@@ -48,6 +48,38 @@ def _move_to_device(batch: dict[str, Any], device: torch.device) -> dict[str, An
     return moved
 
 
+# HF's GroundingDinoForObjectDetectionLoss hardcodes the class-loss weight (2.0) rather than
+# reading it from the model config; mirrored here so `weighted_loss` reproduces its total exactly
+# when `enc_class_loss_weight` equals it (asserted in tests/test_train_loop.py).
+HF_CLASS_LOSS_WEIGHT = 2.0
+
+
+def weighted_loss(
+    loss_dict: dict[str, torch.Tensor], model_config: Any, enc_class_loss_weight: float
+) -> torch.Tensor:
+    """HF's Grounding-DINO total loss, with the encoder-proposal class term reweighted.
+
+    On the pretrained checkpoint the two-stage encoder's proposal scores are uncalibrated for
+    HF's sigmoid focal loss: ~890 of 900 proposals score > 0.5, so `loss_ce_enc` is ~65,000 while
+    every other term is < 1 ([SEQ-0132]). Under gradient clipping it then owns the whole update,
+    pushed through the shared encoder the decoder reads. Our detection path never reads encoder
+    logits (they only rank proposals), so spec 03 drops that term by default and keeps the rest.
+    """
+    base = {
+        "loss_ce": HF_CLASS_LOSS_WEIGHT,
+        "loss_bbox": model_config.bbox_loss_coefficient,
+        "loss_giou": model_config.giou_loss_coefficient,
+    }
+    weights = dict(base)
+    if model_config.two_stage:
+        weights.update({f"{k}_enc": v for k, v in base.items()})
+        weights["loss_ce_enc"] = enc_class_loss_weight
+    if model_config.auxiliary_loss:
+        for i in range(model_config.decoder_layers - 1):
+            weights.update({f"{k}_{i}": v for k, v in base.items()})
+    return sum(loss_dict[k] * w for k, w in weights.items() if k in loss_dict)
+
+
 class DetectorTrainer:
     """Owns the model, optimizer, schedule and step counter for one fine-tuning run.
 
@@ -137,7 +169,10 @@ class DetectorTrainer:
         autocast_enabled = self.device.type == "cuda"
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=autocast_enabled):
             outputs = self.model(**batch)
-            loss = outputs.loss
+            # Not `outputs.loss`: see `weighted_loss` for why the encoder class term is reweighted.
+            loss = weighted_loss(
+                outputs.loss_dict, self.model.config, self.config.enc_class_loss_weight
+            )
 
         if not torch.isfinite(loss):
             raise RuntimeError(
@@ -164,6 +199,10 @@ class DetectorTrainer:
             "loss_ce": _scalar(loss_dict.get("loss_ce", 0.0)),
             "loss_bbox": _scalar(loss_dict.get("loss_bbox", 0.0)),
             "loss_giou": _scalar(loss_dict.get("loss_giou", 0.0)),
+            # Logged even at weight 0, so a drift in the untrained term is visible, not hidden.
+            "loss_ce_enc": _scalar(loss_dict.get("loss_ce_enc", 0.0)),
+            "loss_bbox_enc": _scalar(loss_dict.get("loss_bbox_enc", 0.0)),
+            "loss_giou_enc": _scalar(loss_dict.get("loss_giou_enc", 0.0)),
             "lr": self.optimizer.param_groups[-1]["lr"],
             "grad_norm": float(grad_norm),
         }

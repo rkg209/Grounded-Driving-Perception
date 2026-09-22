@@ -14,6 +14,10 @@ training:
   batch_size: 4
   grad_accum: 1
   max_grad_norm: 0.1
+  # HF's encoder-proposal class loss (weight 2.0 upstream) is ~65,000x every other term on the
+  # pretrained checkpoint and failed the overfit gate (job 409183, [SEQ-0132]). Detection never
+  # reads encoder logits, so it is dropped; encoder box losses and all decoder losses are kept.
+  enc_class_loss_weight: 0.0
   freeze_text_encoder: true
   gradient_checkpointing: false
   # Overfit-20 gate (design decision 5): must be true (final loss < overfit_loss_target) before the

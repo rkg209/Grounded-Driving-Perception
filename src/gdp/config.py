@@ -101,6 +101,10 @@ class TrainingConfig:
     batch_size: int = 4
     grad_accum: int = 1
     max_grad_norm: float = 0.1
+    # Weight on HF's two-stage encoder-proposal class loss (`loss_ce_enc`; HF uses 2.0). 0 drops
+    # it: on the pretrained checkpoint it is ~65,000x every other term and swamps the update
+    # (progress_report [SEQ-0132]; see gdp.train.trainer.weighted_loss).
+    enc_class_loss_weight: float = 0.0
     freeze_text_encoder: bool = True
     gradient_checkpointing: bool = False
     # The overfit-20 gate (spec 03 design decision 5): trains on a fixed subset and asserts
@@ -123,6 +127,11 @@ class TrainingConfig:
         if self.keep_last_checkpoints <= 0:
             raise ValueError(
                 f"training.keep_last_checkpoints must be positive, got {self.keep_last_checkpoints}"
+            )
+        if self.enc_class_loss_weight < 0:
+            raise ValueError(
+                "training.enc_class_loss_weight must be non-negative, got "
+                f"{self.enc_class_loss_weight}"
             )
         if self.num_workers < 0:
             raise ValueError(f"training.num_workers must be non-negative, got {self.num_workers}")
