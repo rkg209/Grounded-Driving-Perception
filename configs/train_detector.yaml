@@ -22,4 +22,8 @@ training:
   overfit_max_steps: 200
   overfit_loss_target: 1.0
   save_every: 500
+  # ~2GB each (weights + AdamW state); keep only the newest few, or ~420 of them fill scratch.
+  keep_last_checkpoints: 3
   log_every: 10
+  # finetune_detector.slurm asks for 8 CPUs; leave 2 for the training process itself.
+  num_workers: 6

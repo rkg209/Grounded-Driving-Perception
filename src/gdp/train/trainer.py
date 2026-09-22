@@ -9,6 +9,8 @@ H1: this is *adaptation*, and the adaptation's mechanics should be inspectable, 
 from __future__ import annotations
 
 import os
+import shutil
+import time
 from pathlib import Path
 from typing import Any
 
@@ -156,6 +158,8 @@ class DetectorTrainer:
         loss_dict = outputs.loss_dict
         record = {
             "step": self.step,
+            # Wall clock, so step time (and so a run's walltime) can be read off the gate's log.
+            "time": time.time(),
             "loss": loss.item(),
             "loss_ce": _scalar(loss_dict.get("loss_ce", 0.0)),
             "loss_bbox": _scalar(loss_dict.get("loss_bbox", 0.0)),
@@ -182,10 +186,26 @@ class DetectorTrainer:
             },
             ckpt_dir / "trainer_state.pt",
         )
+        self._prune_checkpoints()
         return ckpt_dir
+
+    def _prune_checkpoints(self) -> None:
+        """Keep only the newest `keep_last_checkpoints` in this run dir. Only the newest is ever
+        resumed from; a full BDD100K run otherwise writes ~800GB of checkpoints to scratch."""
+        ckpts = sorted(
+            (p for p in self.run_dir.glob("checkpoint-*") if p.name.split("-", 1)[1].isdigit()),
+            key=lambda p: int(p.name.split("-", 1)[1]),
+        )
+        for stale in ckpts[: -self.config.keep_last_checkpoints]:
+            shutil.rmtree(stale)
 
     def resume(self, checkpoint_dir: str | Path) -> None:
         """Restore step/optimizer/scheduler/RNG. Call this **after** `build_scheduler`.
+
+        Weights are *not* restored here: the model must already have been loaded from
+        `checkpoint_dir` via `from_pretrained(checkpoint_dir)`, which is what the CLI's `--resume`
+        does. Resuming onto the pretrained weights would carry the step counter and optimizer
+        over to an untrained model and silently discard everything before the checkpoint.
 
         The order matters and is enforced rather than documented: with no scheduler built yet,
         the saved LR-schedule position has nowhere to go, and a resumed run would silently

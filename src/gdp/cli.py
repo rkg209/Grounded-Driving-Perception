@@ -730,8 +730,12 @@ def train_detector(
     samples = ds.samples[:n_images] if n_images else ds.samples
 
     processor = AutoProcessor.from_pretrained(cfg.detector.model_id)
+    # A resume must continue from the checkpoint's *weights*, not just its step and optimizer:
+    # `trainer.resume` restores only the latter, so loading the pretrained model here would put
+    # step N's optimizer onto untrained weights and silently discard every step before it.
     model = GroundingDinoForObjectDetection.from_pretrained(
-        cfg.detector.model_id, disable_custom_kernels=cfg.detector.disable_custom_kernels
+        resume or cfg.detector.model_id,
+        disable_custom_kernels=cfg.detector.disable_custom_kernels,
     )
 
     out_dir = run_dir("03-finetune")
@@ -743,6 +747,7 @@ def train_detector(
         batch_size=cfg.training.batch_size,
         shuffle=True,
         collate_fn=collator,
+        num_workers=cfg.training.num_workers,
     )
     steps_per_epoch = max(len(loader), 1)
     total_steps = max_steps or (

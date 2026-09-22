@@ -109,11 +109,23 @@ class TrainingConfig:
     overfit_max_steps: int = 200
     overfit_loss_target: float = 1.0
     save_every: int = 500
+    # Each checkpoint is ~2GB (weights + AdamW moments); a 12-epoch BDD100K run saves ~420 of
+    # them. Only the newest few are ever resumed from, so the rest are deleted as we go.
+    keep_last_checkpoints: int = 3
     log_every: int = 10
+    # Image decode + processor resize run in the loader; 0 keeps them on the training process
+    # (fine for the fixture, a GPU stall on a 70k-image run).
+    num_workers: int = 0
 
     def validate(self) -> None:
         if self.lr <= 0:
             raise ValueError(f"training.lr must be positive, got {self.lr}")
+        if self.keep_last_checkpoints <= 0:
+            raise ValueError(
+                f"training.keep_last_checkpoints must be positive, got {self.keep_last_checkpoints}"
+            )
+        if self.num_workers < 0:
+            raise ValueError(f"training.num_workers must be non-negative, got {self.num_workers}")
         if self.backbone_lr_mult <= 0:
             raise ValueError(
                 f"training.backbone_lr_mult must be positive, got {self.backbone_lr_mult}"

@@ -4,10 +4,10 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
-#SBATCH --time=24:00:00            # EDIT: estimate from the overfit gate's step time x total
-                                    # steps (training.epochs x steps-per-epoch in
-                                    # configs/train_detector.yaml) + ~30%, then requeue if it
-                                    # still doesn't finish — see the resume note below.
+#SBATCH --time=72:00:00            # ~209k steps (12 epochs x 69,863 imgs / batch 4). Rudra's
+                                    # `gpu` partition allows 4 days. Refine from the overfit
+                                    # gate's step time (train_log.jsonl "time" field) x total
+                                    # steps + ~30%; requeue if it still doesn't finish.
 #SBATCH --output=runs/03-finetune/slurm-%j.out
 #SBATCH --error=runs/03-finetune/slurm-%j.err
 #
@@ -31,9 +31,10 @@ set -euo pipefail
 # scripts/slurm/zeroshot_eval.slurm). Each step's result path is cached in $STATE_DIR after it
 # succeeds; a re-submitted job skips every already-completed step. The one caveat: `gdp train
 # detector` always writes to a FRESH runs/03-finetune/<ts>/ (the CLI has no --out-dir flag), so a
-# job killed mid-training and resubmitted resumes the OPTIMIZER STEP from the latest checkpoint-N
-# it can find on disk (via --resume), but that continuation lands in a new timestamped directory
-# rather than the original one. This is a known, documented gap, not a silent one: watch
+# job killed mid-training and resubmitted resumes weights, optimizer, LR schedule and step from
+# the latest checkpoint-N it can find on disk (via --resume), but that continuation lands in a new
+# timestamped directory rather than the original one, and starts a freshly shuffled epoch rather
+# than the rest of the interrupted one. Known, documented gaps, not silent ones: watch
 # $STATE_DIR/train_full.log across resubmissions if you need every checkpoint in one place.
 
 cd "$SLURM_SUBMIT_DIR"
@@ -108,7 +109,19 @@ run_step overfit_gate \
 
 # --- 2. The real fine-tuning run. If a checkpoint from a previously-killed attempt exists on
 # disk, resume from its latest step rather than restarting at 0 (see the resumability note above).
-LATEST_CKPT=$(ls -dt runs/03-finetune/*/checkpoint-* 2>/dev/null | head -1 || true)
+# Only checkpoints written AFTER the overfit gate passed are candidates: the gate's own
+# checkpoint-200 (20 images, 200-step schedule) sits in runs/03-finetune/ too, and a bare
+# `ls -dt runs/03-finetune/*/checkpoint-*` picked it up on the very first submission. A
+# checkpoint without trainer_state.pt (written last) was cut off mid-save and is skipped.
+CANDIDATES=()
+while IFS= read -r ckpt; do
+  if [[ -f "$ckpt/trainer_state.pt" ]]; then CANDIDATES+=("$ckpt"); fi
+done < <(find runs/03-finetune -mindepth 2 -maxdepth 2 -type d -name 'checkpoint-*' \
+           -newer "$STATE_DIR/overfit_gate.path" 2>/dev/null)
+LATEST_CKPT=""
+if (( ${#CANDIDATES[@]} )); then
+  LATEST_CKPT=$(ls -dt "${CANDIDATES[@]}" | head -1)
+fi
 RESUME_ARGS=()
 if [[ -n "$LATEST_CKPT" ]]; then
   echo "==> resuming fine-tuning from $LATEST_CKPT" >&2
