@@ -50,20 +50,24 @@ def _move_to_device(batch: dict[str, Any], device: torch.device) -> dict[str, An
 
 # HF's GroundingDinoForObjectDetectionLoss hardcodes the class-loss weight (2.0) rather than
 # reading it from the model config; mirrored here so `weighted_loss` reproduces its total exactly
-# when `enc_class_loss_weight` equals it (asserted in tests/test_train_loop.py).
+# at `enc_loss_scale=1.0` (asserted in tests/test_train_loop.py).
 HF_CLASS_LOSS_WEIGHT = 2.0
 
 
 def weighted_loss(
-    loss_dict: dict[str, torch.Tensor], model_config: Any, enc_class_loss_weight: float
+    loss_dict: dict[str, torch.Tensor], model_config: Any, enc_loss_scale: float
 ) -> torch.Tensor:
-    """HF's Grounding-DINO total loss, with the encoder-proposal class term reweighted.
+    """HF's Grounding-DINO total loss, with its two-stage encoder terms scaled by `enc_loss_scale`
+    (1.0 = HF's own total; spec 03 uses 0.0, i.e. the encoder proposals are not supervised).
 
-    On the pretrained checkpoint the two-stage encoder's proposal scores are uncalibrated for
-    HF's sigmoid focal loss: ~890 of 900 proposals score > 0.5, so `loss_ce_enc` is ~65,000 while
-    every other term is < 1 ([SEQ-0132]). Under gradient clipping it then owns the whole update,
-    pushed through the shared encoder the decoder reads. Our detection path never reads encoder
-    logits (they only rank proposals), so spec 03 drops that term by default and keeps the rest.
+    Why 0 (progress_report [SEQ-0132]-[SEQ-0135]):
+    - HF computes the encoder terms on `.detach()`ed proposal boxes and queries
+      (modeling_grounding_dino.py, two-stage block), so `loss_bbox_enc`/`loss_giou_enc` carry no
+      gradient at all. They are constants that no step can reduce, and they made the overfit
+      gate's total unreachable.
+    - `loss_ce_enc` is ~65,000x every other term on the pretrained checkpoint (~890/900 proposals
+      score > 0.5), and its only gradient path is the text-side fusion features.
+    Detection reads decoder logits only, so the optimized objective is the decoder terms.
     """
     base = {
         "loss_ce": HF_CLASS_LOSS_WEIGHT,
@@ -72,8 +76,7 @@ def weighted_loss(
     }
     weights = dict(base)
     if model_config.two_stage:
-        weights.update({f"{k}_enc": v for k, v in base.items()})
-        weights["loss_ce_enc"] = enc_class_loss_weight
+        weights.update({f"{k}_enc": v * enc_loss_scale for k, v in base.items()})
     if model_config.auxiliary_loss:
         for i in range(model_config.decoder_layers - 1):
             weights.update({f"{k}_{i}": v for k, v in base.items()})
@@ -169,10 +172,8 @@ class DetectorTrainer:
         autocast_enabled = self.device.type == "cuda"
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=autocast_enabled):
             outputs = self.model(**batch)
-            # Not `outputs.loss`: see `weighted_loss` for why the encoder class term is reweighted.
-            loss = weighted_loss(
-                outputs.loss_dict, self.model.config, self.config.enc_class_loss_weight
-            )
+            # Not `outputs.loss`: see `weighted_loss` for why the encoder terms are scaled out.
+            loss = weighted_loss(outputs.loss_dict, self.model.config, self.config.enc_loss_scale)
 
         if not torch.isfinite(loss):
             raise RuntimeError(

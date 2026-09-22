@@ -7,7 +7,7 @@ from transformers import AutoProcessor, GroundingDinoForObjectDetection
 from gdp.config import TrainingConfig
 from gdp.data.core import load_dataset
 from gdp.train.dataset import DetectionCollator
-from gdp.train.trainer import HF_CLASS_LOSS_WEIGHT, DetectorTrainer, weighted_loss
+from gdp.train.trainer import DetectorTrainer, weighted_loss
 
 pytestmark = pytest.mark.model_heavy
 
@@ -66,23 +66,29 @@ def test_three_steps_loss_finite_and_decreasing(dataset, processor, model, tmp_p
     assert len(log_lines) == 3
 
 
-def test_weighted_loss_matches_hf_at_hfs_encoder_weight(dataset, processor, model):
-    """Guards `weighted_loss`'s mirrored weight table against drift in HF's loss: at HF's own
-    encoder class weight, it must reproduce `outputs.loss` exactly. At 0 it must differ by exactly
-    that term (the [SEQ-0132] fix, measured on the real model rather than assumed)."""
+def test_weighted_loss_matches_hf_at_unit_encoder_scale(dataset, processor, model):
+    """Guards `weighted_loss`'s mirrored weight table against drift in HF's loss: at
+    enc_loss_scale=1.0 it must reproduce `outputs.loss`; at 0 it must be O(1) ([SEQ-0132])."""
     batch = _batch(dataset, processor)
     with torch.no_grad():
         outputs = model(**batch)
 
-    at_hf = weighted_loss(outputs.loss_dict, model.config, HF_CLASS_LOSS_WEIGHT)
+    at_hf = weighted_loss(outputs.loss_dict, model.config, 1.0)
     assert float(at_hf) == pytest.approx(float(outputs.loss), rel=1e-5)
+    assert float(weighted_loss(outputs.loss_dict, model.config, 0.0)) < 10.0
 
-    dropped = weighted_loss(outputs.loss_dict, model.config, 0.0)
-    enc_term = HF_CLASS_LOSS_WEIGHT * float(outputs.loss_dict["loss_ce_enc"])
-    # Added, not subtracted: `outputs.loss - enc_term` is ~130k - ~130k in float32, whose
-    # cancellation error (~0.008) exceeds the ~2.1 remainder's tolerance.
-    assert float(dropped) + enc_term == pytest.approx(float(outputs.loss), rel=1e-5)
-    assert float(dropped) < 10.0  # the whole point: the remaining objective is O(1)
+
+def test_hf_encoder_box_losses_carry_no_gradient(dataset, processor, model):
+    """The premise of enc_loss_scale=0 ([SEQ-0135]): HF computes the two-stage encoder box losses
+    on detached proposals, so they are constants to the optimizer, while the decoder's are not.
+    If a transformers upgrade stops detaching, this fails and the decision must be revisited."""
+    model.train()
+    outputs = model(**_batch(dataset, processor))
+    loss_dict = outputs.loss_dict
+    assert loss_dict["loss_bbox_enc"].grad_fn is None
+    assert loss_dict["loss_giou_enc"].grad_fn is None
+    assert loss_dict["loss_bbox"].grad_fn is not None
+    assert loss_dict["loss_giou"].grad_fn is not None
 
 
 def test_freeze_text_encoder_stops_its_gradients(dataset, processor, model, tmp_path):

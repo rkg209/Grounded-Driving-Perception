@@ -1,4 +1,4 @@
-"""`weighted_loss`: HF's Grounding-DINO total, with the encoder class term reweighted ([SEQ-0132]).
+"""`weighted_loss`: HF's Grounding-DINO total, with the two-stage encoder terms scaled ([SEQ-0136]).
 
 No model is loaded here; the model_heavy equivalence against HF's own `outputs.loss` lives in
 tests/test_train_loop.py.
@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from gdp.train.trainer import HF_CLASS_LOSS_WEIGHT, weighted_loss
+from gdp.train.trainer import weighted_loss
 
 # Grounding-DINO-tiny's values: two-stage on, auxiliary decoder losses off.
 TINY = SimpleNamespace(
@@ -35,15 +35,14 @@ LOSS_DICT = {
 }
 
 
-def test_zero_weight_drops_only_the_encoder_class_term():
-    loss = weighted_loss(LOSS_DICT, TINY, enc_class_loss_weight=0.0)
-    expected = 2.0 * 0.8 + 5.0 * 0.01 + 2.0 * 0.07 + 5.0 * 0.2 + 2.0 * 0.5
-    assert float(loss) == pytest.approx(expected)
+def test_zero_scale_leaves_exactly_the_decoder_terms():
+    loss = weighted_loss(LOSS_DICT, TINY, enc_loss_scale=0.0)
+    assert float(loss) == pytest.approx(2.0 * 0.8 + 5.0 * 0.01 + 2.0 * 0.07)
 
 
-def test_hf_weight_reproduces_hfs_formula():
+def test_unit_scale_reproduces_hfs_formula():
     """Cardinality errors are logged by HF but never weighted into its total."""
-    loss = weighted_loss(LOSS_DICT, TINY, enc_class_loss_weight=HF_CLASS_LOSS_WEIGHT)
+    loss = weighted_loss(LOSS_DICT, TINY, enc_loss_scale=1.0)
     expected = 2.0 * 0.8 + 5.0 * 0.01 + 2.0 * 0.07 + 2.0 * 65000.0 + 5.0 * 0.2 + 2.0 * 0.5
     assert float(loss) == pytest.approx(expected)
 

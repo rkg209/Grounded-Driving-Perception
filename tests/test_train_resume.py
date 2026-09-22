@@ -52,7 +52,7 @@ def test_save_checkpoint_keeps_only_the_newest_n(tmp_path):
 
 @pytest.mark.parametrize(
     "field,value",
-    [("keep_last_checkpoints", 0), ("num_workers", -1), ("enc_class_loss_weight", -1.0)],
+    [("keep_last_checkpoints", 0), ("num_workers", -1), ("enc_loss_scale", -1.0)],
 )
 def test_training_config_rejects_bad_values(field, value):
     with pytest.raises(ValueError, match=field):
