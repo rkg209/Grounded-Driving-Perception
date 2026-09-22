@@ -10,6 +10,10 @@
                                     # doesn't finish — see the resume note below.
 #SBATCH --output=runs/07-finetune-vlm/slurm-%j.out
 #SBATCH --error=runs/07-finetune-vlm/slurm-%j.err
+#
+# BEFORE SUBMITTING, on Rudra: `mkdir -p runs/07-finetune-vlm` (SLURM cannot create the --output
+# directory and fails the job silently if it is missing), and apply nothing else — the cluster
+# fixes live in scripts/slurm/cluster_env.sh, sourced below.
 set -euo pipefail
 
 # Spec 07 (LoRA fine-tune Qwen2.5-VL-3B on DriveLM, H1): trains the Stage-2 adapter. Chain:
@@ -33,8 +37,9 @@ set -euo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
 export WANDB_PROJECT=gdp-finetune-vlm               # WANDB_API_KEY, if set, turns on curve logging
-export HF_HOME="${SCRATCH:-$HOME}/hf"               # never fill $HOME quota with a 3B model's weights
-export TOKENIZERS_PARALLELISM=false
+# Cluster env (scratch paths, HF cache, offline flags, C headers, uv on PATH, provenance echo).
+# See scripts/slurm/cluster_env.sh — it degrades to sane defaults off Rudra.
+source scripts/slurm/cluster_env.sh
 
 CFG="-c configs/default.yaml -c configs/drivelm.yaml -c configs/train_vlm.yaml"
 STATE_DIR="runs/07-finetune-vlm/slurm-state"

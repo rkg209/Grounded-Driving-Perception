@@ -10,6 +10,10 @@
                                     # still doesn't finish — see the resume note below.
 #SBATCH --output=runs/03-finetune/slurm-%j.out
 #SBATCH --error=runs/03-finetune/slurm-%j.err
+#
+# BEFORE SUBMITTING, on Rudra: `mkdir -p runs/03-finetune` (SLURM cannot create the --output
+# directory and fails the job silently if it is missing), and apply nothing else — the cluster
+# fixes live in scripts/slurm/cluster_env.sh, sourced below.
 set -euo pipefail
 
 # Spec 03 (fine-tune the detector, H1/H8): fine-tune Grounding-DINO on BDD100K train and report
@@ -34,8 +38,9 @@ set -euo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
 export WANDB_PROJECT=grounded-driving-perception   # WANDB_API_KEY, if set, turns on curve logging
-export HF_HOME="${SCRATCH:-$HOME}/hf"               # never fill $HOME quota with weights
-export TOKENIZERS_PARALLELISM=false
+# Cluster env (scratch paths, HF cache, offline flags, C headers, uv on PATH, provenance echo).
+# See scripts/slurm/cluster_env.sh — it degrades to sane defaults off Rudra.
+source scripts/slurm/cluster_env.sh
 
 CFG="-c configs/default.yaml -c configs/bdd100k.yaml -c configs/train_detector.yaml"
 STATE_DIR="runs/03-finetune/slurm-state"

@@ -8,6 +8,10 @@
                                     # is trivial GPU time, so this is dominated by queue + startup.
 #SBATCH --output=runs/04-grounding/slurm-%j.out
 #SBATCH --error=runs/04-grounding/slurm-%j.err
+#
+# BEFORE SUBMITTING, on Rudra: `mkdir -p runs/04-grounding` (SLURM cannot create the --output
+# directory and fails the job silently if it is missing), and apply nothing else — the cluster
+# fixes live in scripts/slurm/cluster_env.sh, sourced below.
 set -euo pipefail
 
 # Spec 04 (curated grounding evaluation set, H8/H9): score the SAME frozen, hash-locked phrase
@@ -32,8 +36,9 @@ set -euo pipefail
 # succeeds; a re-submitted job skips every already-completed step.
 
 cd "$SLURM_SUBMIT_DIR"
-export HF_HOME="${SCRATCH:-$HOME}/hf"               # never fill $HOME quota with weights
-export TOKENIZERS_PARALLELISM=false
+# Cluster env (scratch paths, HF cache, offline flags, C headers, uv on PATH, provenance echo).
+# See scripts/slurm/cluster_env.sh — it degrades to sane defaults off Rudra.
+source scripts/slurm/cluster_env.sh
 
 CFG="-c configs/default.yaml -c configs/bdd100k.yaml -c configs/grounding_eval.yaml"
 STATE_DIR="runs/04-grounding/slurm-state"

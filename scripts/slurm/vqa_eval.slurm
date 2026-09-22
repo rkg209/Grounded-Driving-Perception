@@ -9,6 +9,10 @@
                                     # requeue if it still doesn't finish — see the resume note.
 #SBATCH --output=runs/08-vqa/slurm-%j.out
 #SBATCH --error=runs/08-vqa/slurm-%j.err
+#
+# BEFORE SUBMITTING, on Rudra: `mkdir -p runs/08-vqa` (SLURM cannot create the --output
+# directory and fails the job silently if it is missing), and apply nothing else — the cluster
+# fixes live in scripts/slurm/cluster_env.sh, sourced below.
 set -euo pipefail
 
 # Spec 08 (base-vs-fine-tuned VQA accuracy on DriveLM's official split, H2): scores spec 07's
@@ -29,8 +33,9 @@ set -euo pipefail
 # (rather than letting them default) if you need that continuity across a requeue.
 
 cd "$SLURM_SUBMIT_DIR"
-export HF_HOME="${SCRATCH:-$HOME}/hf"               # never fill $HOME quota with the 3B model's weights
-export TOKENIZERS_PARALLELISM=false
+# Cluster env (scratch paths, HF cache, offline flags, C headers, uv on PATH, provenance echo).
+# See scripts/slurm/cluster_env.sh — it degrades to sane defaults off Rudra.
+source scripts/slurm/cluster_env.sh
 
 CFG="-c configs/default.yaml -c configs/drivelm.yaml -c configs/vqa_eval.yaml"
 STATE_DIR="runs/08-vqa/slurm-state"
