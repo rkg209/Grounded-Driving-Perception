@@ -21,8 +21,12 @@ set -euo pipefail
 #   data prepare (real bdd100k)
 #     -> detect --split train (low threshold, headroom for the sweep)
 #     -> evaluate --split train --sweep   (picks the operating threshold; chosen_on=train)
-#     -> detect --split val --box-threshold <sweep winner>
+#     -> detect --split val (same low score floor — mAP is computed over every saved box)
 #     -> evaluate --split val --box-threshold <winner> --chosen-on train   <-- THE H8 BASELINE
+#        (mAP over the full-floor predictions; <winner> sets only the precision/recall point)
+#
+# RE-RUNNING after a previous job: `rm -rf runs/02-zeroshot/slurm-state` first, or the resume
+# cache replays every completed step's old output instead of recomputing it.
 #
 # Resumable: SLURM pre-emption/walltime kills are normal on a shared cluster, not exceptional.
 # Each step's result path is cached in $STATE_DIR after it succeeds; a re-submitted job skips
@@ -40,9 +44,13 @@ mkdir -p "$STATE_DIR" data/bdd100k/labels/det_20
 # How many train images the threshold sweep runs against — a representative slice, not the full
 # ~70k-image train split, since the sweep only needs to pick one number.
 SWEEP_LIMIT="${SWEEP_LIMIT:-2000}"
-# The sweep only needs candidates >= 0.15 (configs/default.yaml's detector.sweep_candidates); this
-# is set below that floor so the train predictions carry every score the sweep might pick.
-SWEEP_HEADROOM_THRESHOLD="0.05"
+# The score every detect step saves boxes down to. Two jobs, one value: it sits below every
+# detector.sweep_candidates entry (>= 0.15) so the sweep sees every score it might pick, and it is
+# low enough that val mAP integrates over (nearly) the whole precision-recall curve, the way
+# published COCO-style numbers are computed. Saving val at the operating threshold instead
+# truncates the curve and understates mAP (job 409062 did this: 0.1983 at a 0.25 floor).
+# Recorded as `map_score_floor` in metrics.json; spec 03 replays it and `gdp compare` enforces it.
+SCORE_FLOOR="${SCORE_FLOOR:-0.05}"
 
 # run_step NAME CMD...
 #   Runs CMD (unless NAME's result is already cached), tees its output to a log for debugging,
@@ -107,7 +115,7 @@ cp "$DATA_DIR/det_val_coco.json" data/bdd100k/labels/det_20/det_val_coco.json
 # --- 2. Detect on a train slice, with headroom below every sweep candidate.
 PRED_TRAIN=$(run_step detect_train \
   uv run gdp detect $CFG --dataset bdd100k --split train \
-    --limit "$SWEEP_LIMIT" --box-threshold "$SWEEP_HEADROOM_THRESHOLD")
+    --limit "$SWEEP_LIMIT" --box-threshold "$SCORE_FLOOR")
 
 # --- 3. Sweep the operating threshold on train ONLY (H8 leakage guard — never on val).
 METRICS_TRAIN=$(run_step evaluate_train_sweep \
@@ -120,13 +128,13 @@ print(json.load(open(sys.argv[1]))['box_threshold'])
 " "$METRICS_TRAIN")
 echo "==> sweep picked box_threshold=$WINNER (chosen_on=train, from $METRICS_TRAIN)" >&2
 
-# --- 4. Detect on the FULL val split at the sweep-picked threshold.
+# --- 4. Detect on the FULL val split at the score floor, NOT the sweep winner: mAP needs the
+# low-score tail of the precision-recall curve; the winner is applied in step 5, to P/R only.
 PRED_VAL=$(run_step detect_val \
-  uv run gdp detect $CFG --dataset bdd100k --split val --box-threshold "$WINNER")
+  uv run gdp detect $CFG --dataset bdd100k --split val --box-threshold "$SCORE_FLOOR")
 
-# --- 5. THE H8 BASELINE: evaluate on val, replaying the train-picked threshold honestly
-# (--chosen-on train records that this number was NOT tuned on val — it was chosen on train and
-# is only being applied here).
+# --- 5. THE H8 BASELINE: mAP over every val box saved at the floor, plus precision/recall at the
+# train-picked threshold (--chosen-on train records that the threshold was NOT tuned on val).
 METRICS_VAL=$(run_step evaluate_val \
   uv run gdp evaluate $CFG --dataset bdd100k --split val \
     --predictions "$PRED_VAL" --box-threshold "$WINNER" --chosen-on train)

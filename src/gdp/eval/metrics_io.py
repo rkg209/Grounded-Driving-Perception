@@ -27,6 +27,7 @@ def build_metrics(
     overall_pr: PrecisionRecall,
     box_threshold: float,
     chosen_on: str,
+    map_score_floor: float | None = None,
     cfg: Config,
     dataset: str,
     split: str,
@@ -34,7 +35,10 @@ def build_metrics(
     is_synthetic: bool,
 ) -> dict[str, Any]:
     """Assemble the full provenance record. `chosen_on` is `"train"` once task 6's sweep picks
-    the threshold, `"config_default"` otherwise — recorded either way (spec 02 acceptance 4)."""
+    the threshold, `"config_default"` otherwise — recorded either way (spec 02 acceptance 4).
+
+    `map_score_floor` is the score detect saved boxes at, i.e. the input `map`/`map50` were
+    computed over; `box_threshold` only governs precision/recall. `None` = unrecorded."""
     return {
         "dataset": dataset,
         "split": split,
@@ -44,6 +48,7 @@ def build_metrics(
         "map": coco_result.map,
         "map50": coco_result.map50,
         "per_class_ap": coco_result.per_class_ap,
+        "map_score_floor": map_score_floor,
         "box_threshold": box_threshold,
         "chosen_on": chosen_on,
         "precision": overall_pr.precision,

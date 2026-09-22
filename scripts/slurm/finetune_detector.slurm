@@ -22,7 +22,7 @@ set -euo pipefail
 #
 #   overfit gate (--overfit N)      <-- REFUSES to let the full run start if this fails
 #     -> train detector (full run)
-#     -> detect --split val --checkpoint <fine-tuned> --box-threshold <spec 02's winner>
+#     -> detect --split val --checkpoint <fine-tuned> --box-threshold <spec 02's score floor>
 #     -> evaluate --split val --checkpoint ... --chosen-on train        <-- the H8 pairing
 #     -> compare --zeroshot <spec 02 metrics.json> --finetuned <the above>
 #     -> probe-openvocab, once per checkpoint (H9: demo only, never a metric)
@@ -119,17 +119,26 @@ CKPT_FINAL=$(run_step train_full \
 
 # --- 3. Replay spec 02's train-chosen threshold — never re-sweep on the fine-tuned model (that
 # would make the two mAPs incomparable and re-open the leakage question, design decision 7).
+# Its score floor is replayed too: mAP is computed over every box detect saved, so the two mAPs
+# are only comparable at the same floor (`gdp compare` refuses a mismatch).
 WINNER=$(uv run python -c "
 import json, sys
 print(json.load(open(sys.argv[1]))['box_threshold'])
 " "$ZEROSHOT_METRICS")
-echo "==> replaying spec 02's threshold box_threshold=$WINNER (chosen_on=train) from $ZEROSHOT_METRICS" >&2
+SCORE_FLOOR=$(uv run python -c "
+import json, sys
+floor = json.load(open(sys.argv[1])).get('map_score_floor')
+if floor is None:
+    sys.exit('zero-shot metrics.json has no map_score_floor — re-run spec 02 at the current commit')
+print(floor)
+" "$ZEROSHOT_METRICS")
+echo "==> replaying spec 02's threshold box_threshold=$WINNER (chosen_on=train) and score floor $SCORE_FLOOR from $ZEROSHOT_METRICS" >&2
 
 # --- 4. Re-score the fine-tuned checkpoint with the IDENTICAL detect/evaluate code as spec 02
 # (design decision 7 — this identity is what makes the mAP delta honest).
 PRED_VAL=$(run_step detect_val_finetuned \
   uv run gdp detect $CFG --dataset bdd100k --split val \
-    --checkpoint "$CKPT_FINAL" --run-spec 03-finetune --box-threshold "$WINNER")
+    --checkpoint "$CKPT_FINAL" --run-spec 03-finetune --box-threshold "$SCORE_FLOOR")
 
 METRICS_VAL=$(run_step evaluate_val_finetuned \
   uv run gdp evaluate $CFG --dataset bdd100k --split val \
@@ -137,7 +146,7 @@ METRICS_VAL=$(run_step evaluate_val_finetuned \
     --box-threshold "$WINNER" --chosen-on train)
 
 # --- 5. THE H8 DELTA: refuses to emit unless both metrics.json's agree on
-# dataset/split/num_images/box_threshold (design decision 8).
+# dataset/split/num_images/box_threshold/map_score_floor (design decision 8).
 COMPARISON=$(run_step compare \
   uv run gdp compare --zeroshot "$ZEROSHOT_METRICS" --finetuned "$METRICS_VAL")
 

@@ -11,6 +11,7 @@ BASE_FIELDS = {
     "split": "val",
     "num_images": 1000,
     "box_threshold": 0.25,
+    "map_score_floor": 0.05,
     "model_id": "IDEA-Research/grounding-dino-tiny",
     "created": "2026-01-01T00:00:00+00:00",
 }
@@ -78,6 +79,8 @@ def test_nan_ap_class_is_not_a_regression_and_does_not_crash():
         ("split", "train"),
         ("num_images", 999),
         ("box_threshold", 0.3),
+        # A higher floor truncates the PR curve: the mAPs would differ with no fine-tuning at all.
+        ("map_score_floor", 0.25),
     ],
 )
 def test_refuses_mismatched_runs(field, value):

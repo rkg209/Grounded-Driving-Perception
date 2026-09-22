@@ -41,6 +41,7 @@ from gdp.deploy.quantize import quantize_dynamic_int8
 from gdp.detect.detector import GroundingDinoDetector
 from gdp.detect.predictions import (
     read_evaluated_image_ids,
+    read_score_floor,
     write_predictions,
     write_predictions_meta,
 )
@@ -468,7 +469,7 @@ def detect(
     write_predictions(detections, predictions_path)
     # Which images this run actually opened — `gdp evaluate` scores against exactly this set, so a
     # `--limit`ed run is never silently scored against the whole split. See write_predictions_meta.
-    write_predictions_meta([s.image_id for s in samples], predictions_path)
+    write_predictions_meta([s.image_id for s in samples], predictions_path, score_floor=threshold)
     typer.echo(
         f"{dataset}/{split}: {len(samples)} images, {len(detections)} detections "
         f"(box_threshold={threshold}) -> {predictions_path}"
@@ -608,6 +609,20 @@ def evaluate(
         for box in sample.boxes
     ]
 
+    # mAP above was computed over every saved box (the floor); the threshold only picks the P/R
+    # operating point. A threshold (or sweep candidate) under the floor would count boxes that were
+    # never saved as misses and understate recall — refuse rather than report it.
+    score_floor = read_score_floor(predictions_path)
+    if sweep:
+        lowest = min(cfg.detector.sweep_candidates)
+    else:
+        lowest = cfg.detector.box_threshold if box_threshold is None else box_threshold
+    if score_floor is not None and lowest < score_floor:
+        _die(
+            f"operating threshold {lowest} is below the score floor {score_floor} these "
+            "predictions were saved at — re-run `gdp detect` with a lower --box-threshold"
+        )
+
     if sweep:
         threshold, _ = sweep_threshold(
             pred_boxes, gt_boxes, candidates=cfg.detector.sweep_candidates
@@ -632,6 +647,7 @@ def evaluate(
         overall_pr=overall_pr,
         box_threshold=threshold,
         chosen_on=chosen_on,
+        map_score_floor=score_floor,
         cfg=cfg,
         dataset=dataset,
         split=split,

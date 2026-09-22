@@ -53,7 +53,9 @@ def meta_path_for(predictions_path: Any) -> Any:
     return predictions_path.with_name(predictions_path.stem + PREDICTIONS_META_SUFFIX)
 
 
-def write_predictions_meta(image_ids: list[int], path: Any) -> Any:
+def write_predictions_meta(
+    image_ids: list[int], path: Any, *, score_floor: float | None = None
+) -> Any:
     """Record which images `gdp detect` actually ran on, beside its predictions.
 
     `predictions.json` is COCO-detection-results format, which has no room for this: an image the
@@ -64,10 +66,16 @@ def write_predictions_meta(image_ids: list[int], path: Any) -> Any:
     (every one of them a phantom miss), and `--sweep`'s F1 argmax is dragged toward lower
     thresholds by the same phantom recall penalty. That is a corrupted H8 baseline, produced
     without a single error message.
+
+    `score_floor` is the `box_threshold` detect saved boxes at. COCO mAP integrates over every
+    saved box, so a higher floor truncates the precision-recall curve and lowers mAP — the floor
+    is part of what the mAP *means*, and two mAPs are only comparable at the same floor.
     """
     import json
 
-    meta = {"image_ids": sorted(image_ids), "num_images": len(image_ids)}
+    meta: dict[str, Any] = {"image_ids": sorted(image_ids), "num_images": len(image_ids)}
+    if score_floor is not None:
+        meta["score_floor"] = score_floor
     meta_path = meta_path_for(path)
     meta_path.write_text(json.dumps(meta, indent=2) + "\n")
     return meta_path
@@ -86,3 +94,14 @@ def read_evaluated_image_ids(predictions_path: Any) -> list[int] | None:
     if not meta_path.is_file():
         return None
     return list(json.loads(meta_path.read_text())["image_ids"])
+
+
+def read_score_floor(predictions_path: Any) -> float | None:
+    """The `box_threshold` `gdp detect` saved boxes at, or `None` if unrecorded (no sidecar, or
+    one written before the floor was recorded)."""
+    import json
+
+    meta_path = meta_path_for(predictions_path)
+    if not meta_path.is_file():
+        return None
+    return json.loads(meta_path.read_text()).get("score_floor")

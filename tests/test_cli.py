@@ -328,14 +328,17 @@ def test_evaluate_mini_bdd_writes_metrics_with_full_provenance(clean_02_zeroshot
 _PERFECT_ON_IMAGE_0 = [{"image_id": 0, "category_id": 0, "bbox": [12, 203, 96, 37], "score": 0.9}]
 
 
-def _write_predictions_with_meta(tmp_path, image_ids: list[int] | None):
+def _write_predictions_with_meta(
+    tmp_path, image_ids: list[int] | None, score_floor: float | None = None
+):
     """A predictions.json (+ optional sidecar) as `gdp detect` would have written it."""
     predictions_path = tmp_path / "predictions.json"
     predictions_path.write_text(json.dumps(_PERFECT_ON_IMAGE_0))
     if image_ids is not None:
-        (tmp_path / "predictions_meta.json").write_text(
-            json.dumps({"image_ids": image_ids, "num_images": len(image_ids)})
-        )
+        meta = {"image_ids": image_ids, "num_images": len(image_ids)}
+        if score_floor is not None:
+            meta["score_floor"] = score_floor
+        (tmp_path / "predictions_meta.json").write_text(json.dumps(meta))
     return predictions_path
 
 
@@ -399,6 +402,27 @@ def test_evaluate_rejects_predictions_from_a_different_split(clean_02_zeroshot_r
     result = _evaluate(_write_predictions_with_meta(tmp_path, image_ids=[0, 4242]))
     assert result.exit_code == 1
     assert "disagree about which split this is" in (result.stdout + str(result.stderr or ""))
+
+
+def test_evaluate_records_the_score_floor_map_was_computed_over(clean_02_zeroshot_runs, tmp_path):
+    """mAP integrates over every box detect saved, so the floor is part of what the number means
+    and `gdp compare` needs it to refuse a floor mismatch (job 409062 scored val at 0.25)."""
+    result = _evaluate(_write_predictions_with_meta(tmp_path, image_ids=[0], score_floor=0.05))
+    assert result.exit_code == 0, result.stdout
+
+    runs_dir = resolve("runs/02-zeroshot")
+    metrics = json.loads(
+        (max(runs_dir.iterdir(), key=lambda p: p.stat().st_mtime) / "metrics.json").read_text()
+    )
+    assert metrics["map_score_floor"] == 0.05
+    assert metrics["box_threshold"] == 0.5, "the operating point stays separate from the floor"
+
+
+def test_evaluate_refuses_a_threshold_below_the_score_floor(clean_02_zeroshot_runs, tmp_path):
+    """Boxes under the floor were never saved; scoring P/R below it would count them as misses."""
+    result = _evaluate(_write_predictions_with_meta(tmp_path, image_ids=[0], score_floor=0.6))
+    assert result.exit_code == 1
+    assert "below the score floor" in (result.stdout + str(result.stderr or ""))
 
 
 def test_evaluate_fails_loudly_with_no_predictions(monkeypatch, clean_02_zeroshot_runs):

@@ -1,9 +1,9 @@
 """The zero-shot -> fine-tuned mAP delta (spec 03 design decision 8) — H8, mechanically enforced.
 
 `build_comparison` refuses to emit unless both `metrics.json`s agree on `dataset`, `split`,
-`num_images`, and `box_threshold`: a delta computed across two different splits or thresholds isn't
-a measurement of fine-tuning, it's noise dressed up as a result. `regressions` is a field in the
-returned dict, not a paragraph someone has to remember to write (H7).
+`num_images`, `box_threshold`, and `map_score_floor`: a delta computed across two different splits
+or thresholds isn't a measurement of fine-tuning, it's noise dressed up as a result. `regressions`
+is a field in the returned dict, not a paragraph someone has to remember to write (H7).
 """
 
 from __future__ import annotations
@@ -13,7 +13,10 @@ import math
 from pathlib import Path
 from typing import Any
 
-_SAME_SPLIT_FIELDS = ("dataset", "split", "num_images", "box_threshold")
+# `map_score_floor` is here because mAP is computed over every box detect saved: a fine-tuned run
+# saved at 0.05 against a zero-shot run saved at 0.25 would show a "gain" that is partly just the
+# longer precision-recall curve, not fine-tuning.
+_SAME_SPLIT_FIELDS = ("dataset", "split", "num_images", "box_threshold", "map_score_floor")
 
 
 def build_comparison(zeroshot: dict[str, Any], finetuned: dict[str, Any]) -> dict[str, Any]:
@@ -27,7 +30,8 @@ def build_comparison(zeroshot: dict[str, Any], finetuned: dict[str, Any]) -> dic
         )
         raise ValueError(
             f"refusing to compare mismatched runs ({details}) — a zero-shot -> fine-tuned mAP "
-            "delta is only honest across the identical dataset/split/num_images/box_threshold (H8)"
+            "delta is only honest across the identical dataset/split/num_images/box_threshold/"
+            "map_score_floor (H8)"
         )
 
     classes = sorted(set(zeroshot["per_class_ap"]) | set(finetuned["per_class_ap"]))
@@ -46,6 +50,7 @@ def build_comparison(zeroshot: dict[str, Any], finetuned: dict[str, Any]) -> dic
         "split": zeroshot["split"],
         "num_images": zeroshot["num_images"],
         "box_threshold": zeroshot["box_threshold"],
+        "map_score_floor": zeroshot.get("map_score_floor"),
         "zeroshot_model_id": zeroshot.get("model_id"),
         "finetuned_model_id": finetuned.get("model_id"),
         "zeroshot_created": zeroshot.get("created"),

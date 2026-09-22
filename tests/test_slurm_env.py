@@ -159,3 +159,17 @@ def test_offline_flags_can_be_opted_out_of(tmp_path):
     """Off Rudra, a cluster whose compute nodes have internet must not be forced offline."""
     env, _, _ = _source_cluster_env(tmp_path, {"GDP_ALLOW_NETWORK": "1"})
     assert "HF_HUB_OFFLINE" not in env
+
+
+def test_val_detection_saves_boxes_at_the_score_floor_not_the_operating_threshold():
+    """mAP is computed over every saved box: detecting val at the sweep winner (0.25) truncates the
+    precision-recall curve and understates mAP (job 409062). Both Stage-1 jobs must detect val at
+    the same low floor and apply the winner only to precision/recall in `gdp evaluate`."""
+    zeroshot = (SLURM_DIR / "zeroshot_eval.slurm").read_text()
+    finetune = (SLURM_DIR / "finetune_detector.slurm").read_text()
+    for script in (zeroshot, finetune):
+        start = script.index("run_step detect_val")
+        detect_val = script[start : script.index(")", start)]
+        assert '--box-threshold "$SCORE_FLOOR"' in detect_val
+        assert '--box-threshold "$WINNER" --chosen-on train' in script
+    assert "map_score_floor" in finetune, "spec 03 must replay spec 02's floor, not pick its own"
