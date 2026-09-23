@@ -132,13 +132,18 @@ def test_mini_drivelm_all_four_categories_present(drivelm_raw):
 
 
 def test_mini_drivelm_every_drop_reason_is_represented(drivelm_raw):
+    from gdp.data.drivelm import normalize_image_path
+
     reasons_seen = set()
     for scene in drivelm_raw.values():
         for frame in scene["key_frames"].values():
             if len(frame["image_paths"]) < 6:
                 reasons_seen.add("missing_image_path")
             for rel in frame["image_paths"].values():
-                if not (resolve("tests/fixtures/mini_drivelm") / rel).is_file():
+                # Raw paths are DriveLM's `../nuscenes/samples/...` form; resolve them the way the
+                # converter does, or every image looks missing and this check passes vacuously.
+                path = resolve("tests/fixtures/mini_drivelm") / normalize_image_path(rel)
+                if not path.is_file():
                     reasons_seen.add("image_file_missing")
             for cat, qas in frame["QA"].items():
                 if cat not in ("perception", "prediction", "planning", "behavior"):
@@ -163,3 +168,24 @@ def test_mini_drivelm_object_tag_present_in_answer(drivelm_raw):
                 if "<c1,CAM_FRONT," in qa["A"]:
                     found = True
     assert found
+
+
+# The exact per-item and per-frame key sets of DriveLM's real `v1_1_train_nus.json` (all 377,956
+# items / 4,072 frames, checked on the downloaded file in progress_report [SEQ-0143]).
+REAL_QA_KEYS = {"Q", "A", "C", "con_up", "con_down", "cluster", "layer"}
+REAL_FRAME_KEYS = {"key_object_infos", "QA", "image_paths"}
+
+
+def test_mini_drivelm_matches_the_real_drivelm_schema(drivelm_raw):
+    """[SEQ-0143]: the fixture once gave every QA a `tag` the real file does not have, which hid a
+    converter rule that dropped all 377,956 real QA. The fixture must follow the real schema, not
+    the converter's assumptions: no `tag`, the real key sets, and DriveLM's `../nuscenes/` paths."""
+    for scene in drivelm_raw.values():
+        assert set(scene) <= {"key_frames", "scene_description"}
+        for frame in scene["key_frames"].values():
+            assert set(frame) == REAL_FRAME_KEYS
+            for rel in frame["image_paths"].values():
+                assert rel.startswith("../nuscenes/samples/CAM_"), rel
+            for qas in frame["QA"].values():
+                for qa in qas:
+                    assert set(qa) == REAL_QA_KEYS, sorted(qa)

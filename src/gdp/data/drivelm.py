@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from gdp.config import DRIVELM_CATEGORIES
+from gdp.data.drivelm_official import extract_data_sha256, official_eval_tags
 from gdp.data.splits import OfficialSplits, resolve_split
 from gdp.paths import git_sha
 
@@ -44,8 +45,20 @@ DROP_REASONS = (
     "unknown_category",
     "missing_image_path",
     "image_file_missing",
-    "missing_tag",
+    # A val QA that DriveLM's own extract_data.py did not select for evaluation. Not a data defect:
+    # the official eval set is a per-frame selection ([SEQ-0143]), and val scenes never train.
+    "val_not_in_official_eval",
 )
+
+# DriveLM writes image paths relative to its own `data/QA_dataset_nus/` directory
+# (`../nuscenes/samples/CAM_FRONT/x.jpg`). We store them relative to the nuScenes root.
+_DRIVELM_IMAGE_PREFIX = "../nuscenes/"
+
+
+def normalize_image_path(rel: str) -> str:
+    """`../nuscenes/samples/CAM_X/f.jpg` -> `samples/CAM_X/f.jpg`; anything else is unchanged."""
+    return rel[len(_DRIVELM_IMAGE_PREFIX) :] if rel.startswith(_DRIVELM_IMAGE_PREFIX) else rel
+
 
 _OBJECT_TAG_RE = re.compile(r"<([^,>]+),([^,>]+),(-?[\d.]+),(-?[\d.]+)>")
 
@@ -78,6 +91,8 @@ class DriveLMRecord:
     # third_party/drivelm/evaluation.py's `evaluation_suit.forward(tag, ...)` uses to route an item
     # to accuracy/chatgpt/language/match (spec 08 design decision 6) — it varies within a category,
     # so it cannot be inferred from `category` alone and must travel with the record verbatim (H2).
+    # Assigned by the vendored extract_data.py, never by us (gdp.data.drivelm_official). Every val
+    # record has one; a train record not selected by extract_data has [] (tags only route scoring).
     tag: list[int]
     image_paths: dict[str, str]
     view_order: list[str]
@@ -97,6 +112,9 @@ class ConversionStats:
     qa_total: int = 0
     qa_kept: int = 0
     dropped: dict[str, int] = field(default_factory=lambda: dict.fromkeys(DROP_REASONS, 0))
+    # Output entries of the vendored extract_data.py over the whole file (both splits), counting
+    # any QA it appended twice. Provenance for the val selection, not a metric.
+    official_eval_entries: int = 0
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -105,6 +123,11 @@ class ConversionStats:
             "qa_total": self.qa_total,
             "qa_kept": self.qa_kept,
             "dropped": dict(self.dropped),
+            "tag_source": {
+                "file": "third_party/drivelm/extract_data.py",
+                "sha256": extract_data_sha256(),
+                "official_eval_entries": self.official_eval_entries,
+            },
         }
 
 
@@ -131,14 +154,24 @@ def convert_drivelm(
     stats = ConversionStats()
     train_records: list[DriveLMRecord] = []
     val_records: list[DriveLMRecord] = []
+    # Every scene's split first, so an unknown scene token fails with its own error before any
+    # other processing.
+    scene_splits = {
+        token: resolve_split(token, scene_meta=scene_meta, splits=splits) for token in raw
+    }
+    # Scorer-routing tags come from DriveLM's own extract_data.py, run verbatim over the whole file
+    # (it is per-frame, so running it before the split changes nothing) — never assigned here.
+    official_tags, stats.official_eval_entries = official_eval_tags(raw)
 
     for scene_token, scene in sorted(raw.items()):
         stats.scenes += 1
-        split = resolve_split(scene_token, scene_meta=scene_meta, splits=splits)
+        split = scene_splits[scene_token]
 
         for frame_token, frame in sorted(scene.get("key_frames", {}).items()):
             stats.frames += 1
-            image_paths: dict[str, str] = frame.get("image_paths", {})
+            image_paths = {
+                cam: normalize_image_path(rel) for cam, rel in frame.get("image_paths", {}).items()
+            }
             missing_views = set(VIEW_ORDER) - set(image_paths)
             file_missing = not missing_views and any(
                 not (images_root / rel).is_file() for rel in image_paths.values()
@@ -150,7 +183,9 @@ def convert_drivelm(
                     stats.qa_total += 1
                     question = qa.get("Q", "")
                     answer = qa.get("A", "")
-                    tag = qa.get("tag")
+                    tag = official_tags.get(
+                        (scene_token, frame_token, category, question, answer), []
+                    )
 
                     if category not in categories:
                         stats.dropped["unknown_category"] += 1
@@ -158,14 +193,15 @@ def convert_drivelm(
                     if not question.strip() or not answer.strip():
                         stats.dropped["missing_qa_text"] += 1
                         continue
-                    if not tag:
-                        stats.dropped["missing_tag"] += 1
-                        continue
                     if missing_views:
                         stats.dropped["missing_image_path"] += 1
                         continue
                     if file_missing:
                         stats.dropped["image_file_missing"] += 1
+                        continue
+                    # Last, so a val QA with a real data defect is counted under that defect.
+                    if split == "val" and not tag:
+                        stats.dropped["val_not_in_official_eval"] += 1
                         continue
 
                     record = DriveLMRecord(

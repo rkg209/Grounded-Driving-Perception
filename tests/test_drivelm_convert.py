@@ -13,9 +13,11 @@ from gdp.data.drivelm import (
     DROP_REASONS,
     VIEW_ORDER,
     convert_drivelm,
+    normalize_image_path,
     parse_object_tags,
     write_jsonl,
 )
+from gdp.data.drivelm_official import extract_data_sha256
 from gdp.data.splits import load_official_splits, load_scene_meta
 
 
@@ -188,3 +190,74 @@ def test_write_jsonl_is_sorted_and_byte_identical(tmp_path, converted):
     lines = p1.read_text().splitlines()
     ids = [json.loads(line)["qa_id"] for line in lines]
     assert ids == sorted(ids)
+
+
+def test_normalize_image_path_strips_drivelms_relative_prefix():
+    assert normalize_image_path("../nuscenes/samples/CAM_FRONT/a.jpg") == "samples/CAM_FRONT/a.jpg"
+    assert normalize_image_path("samples/CAM_FRONT/a.jpg") == "samples/CAM_FRONT/a.jpg"
+
+
+def test_kept_records_store_paths_relative_to_the_nuscenes_root(converted, drivelm_cfg):
+    train_records, val_records, _ = converted
+    for record in train_records + val_records:
+        for rel in record.image_paths.values():
+            assert not rel.startswith("../")
+            assert (drivelm_cfg.nuscenes_root_path() / rel).is_file()
+
+
+def test_every_val_record_carries_an_official_tag(converted):
+    """Val is DriveLM's official eval selection: every record routable by the vendored scorer."""
+    _, val_records, _ = converted
+    assert val_records
+    assert all(r.tag for r in val_records)
+
+
+def test_train_keeps_qa_that_extract_data_did_not_select(converted):
+    """Tags only route scoring, so train keeps every clean QA; unselected ones carry []."""
+    train_records, _, _ = converted
+    assert any(r.tag == [] for r in train_records)
+    assert any(r.tag for r in train_records)
+
+
+def test_tags_are_extract_datas_not_ours(converted):
+    """Spot-check each extract_data rule on one of the fixture's rich train frames ([SEQ-0143])."""
+    train_records, _, _ = converted
+    frame = train_records[0].frame_token
+    records = [r for r in train_records if r.frame_token == frame]
+
+    def tag_of(question_prefix: str) -> list[int]:
+        (match,) = [r.tag for r in records if r.question.startswith(question_prefix)]
+        return match
+
+    assert tag_of("What are the important objects") == [2]  # answer names every object class
+    assert tag_of("What are objects to the front right") == []  # selected by no rule
+    assert tag_of("What is the moving status of object") == [0]
+    assert tag_of("What will the pedestrian do next") == [3]  # answer has every location key
+    assert tag_of("Is <c1") == [0]  # first yes/no prediction
+    assert tag_of("What actions could the ego vehicle take") == [1]
+    assert tag_of("What actions taken by the ego vehicle can lead to a collision") == [1]
+    assert tag_of("In this scenario, what are safe actions") == [1]
+    assert tag_of("Predict the behavior of the ego vehicle") == [0]
+
+
+def test_conversion_stats_record_the_tag_source(converted):
+    _, _, stats = converted
+    source = stats.to_json()["tag_source"]
+    assert source["file"] == "third_party/drivelm/extract_data.py"
+    assert source["sha256"] == extract_data_sha256()
+    assert source["official_eval_entries"] > 0
+
+
+def test_frame_missing_key_object_infos_is_a_clear_error(drivelm_cfg):
+    """extract_data.py (vendored, unedited) requires key_object_infos on every frame."""
+    token = next(iter(json.loads(drivelm_cfg.annotations_path().read_text())))
+    raw = {token: {"key_frames": {"f": {"image_paths": {}, "QA": {}}}}}
+    with pytest.raises(ValueError, match="key_object_infos"):
+        convert_drivelm(
+            raw,
+            scene_meta=load_scene_meta(drivelm_cfg.scene_meta_path()),
+            splits=load_official_splits(),
+            images_root=drivelm_cfg.nuscenes_root_path(),
+            categories=tuple(drivelm_cfg.categories),
+            is_synthetic=True,
+        )

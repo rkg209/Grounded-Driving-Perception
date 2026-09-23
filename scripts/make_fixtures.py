@@ -25,6 +25,7 @@ import hashlib
 import json
 import random
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageDraw
 
@@ -188,45 +189,88 @@ def _drivelm_image(scene_name: str, camera: str) -> Image.Image:
     return img
 
 
-def _drivelm_qa(scene_name: str) -> dict[str, list[dict[str, str]]]:
-    """One valid QA pair per official category. `<c1,CAM_FRONT,x,y>` object tags are embedded
-    byte-verbatim in the answer text (spec 06 design decision 4) — the converter must copy them
-    unmodified, never rewrite or strip them (H2)."""
-    tag = f"<c1,CAM_FRONT,{100 + len(scene_name)}.0,50.0>"
-    # DriveLM's own scorer-routing `tag` (a list[int]; see gdp.data.drivelm.DriveLMRecord.tag) —
-    # NOT the `<c1,CAM_FRONT,x,y>` object-reference tag above. Mirrors the real DriveLM QA schema's
-    # per-item routing (spec 08 design decision 6): perception carries [2] (language), prediction
-    # [3] (match), planning [1] (chatgpt), behavior [0] (accuracy) — a plausible real mix, not an
-    # exhaustive one; task 4's fixture predictions add more variety where needed.
+def _qa(question: str, answer: str) -> dict[str, Any]:
+    """One QA item in the real `v1_1_train_nus.json` schema: exactly these seven keys and **no**
+    `tag` — the real file has none; the vendored extract_data.py assigns them ([SEQ-0143], where a
+    fixture that invented `tag` hid a converter bug that dropped all 377,956 real QA)."""
     return {
+        "Q": question,
+        "A": answer,
+        "C": None,
+        "con_up": None,
+        "con_down": None,
+        "cluster": None,
+        "layer": None,
+    }
+
+
+def _object_ref(scene_name: str) -> str:
+    return f"<c1,CAM_FRONT,{100 + len(scene_name)}.0,50.0>"
+
+
+def _drivelm_qa(scene_name: str, *, rich: bool) -> dict[str, list[dict[str, Any]]]:
+    """QA for one clean frame, worded so DriveLM's own extract_data.py selects (and tags) exactly:
+    perception[0] [2] (answer names the object class), prediction[0] [3] (answer contains the
+    object's location key), planning[0] [1] ("What actions could the ego vehicle take"),
+    behavior[0] [0]. perception[1] is selected by none of its rules, so on a val scene it is a
+    `val_not_in_official_eval` drop. `rich` (train scenes) adds the other rule types — a "moving
+    status" question [0], a yes/no prediction [0], collision and safe-action planning [1] — so the
+    fixture exercises every extract_data branch. `<cX,CAM,x,y>` object refs stay byte-verbatim."""
+    obj = _object_ref(scene_name)
+    qa = {
         "perception": [
-            {
-                "Q": "What objects are visible in the front camera?",
-                "A": f"There is a pedestrian {tag} near the crosswalk.",
-                "tag": [2],
-            }
+            _qa(
+                "What are the important objects in the current scene?",
+                f"There is one pedestrian near the crosswalk {obj}.",
+            ),
+            _qa(
+                "What are objects to the front right of the ego car?",
+                "There is one barrier to the front right of the ego car.",
+            ),
         ],
         "prediction": [
-            {
-                "Q": "What will the pedestrian do next?",
-                "A": "The pedestrian will keep walking.",
-                "tag": [3],
-            }
+            _qa("What will the pedestrian do next?", f"The pedestrian {obj} will keep walking."),
         ],
         "planning": [
-            {
-                "Q": "What is the safe action for the ego vehicle?",
-                "A": "Slow down and yield.",
-                "tag": [1],
-            }
+            _qa(
+                f"What actions could the ego vehicle take based on {obj}? Why take this action?",
+                "Slow down and yield, high probability.",
+            ),
         ],
         "behavior": [
-            {
-                "Q": "What is the ego vehicle's current behavior?",
-                "A": "Decelerating.",
-                "tag": [0],
-            }
+            _qa(
+                "Predict the behavior of the ego vehicle.",
+                "The ego vehicle is going straight. The ego vehicle is driving slowly.",
+            ),
         ],
+    }
+    if rich:
+        qa["perception"].append(_qa(f"What is the moving status of object {obj}?", "Going ahead."))
+        qa["prediction"].append(_qa(f"Is {obj} a traffic sign or a road barrier?", "No."))
+        qa["planning"].append(
+            _qa(
+                f"What actions taken by the ego vehicle can lead to a collision with {obj}?",
+                "Accelerating straight ahead.",
+            )
+        )
+        qa["planning"].append(
+            _qa(
+                "In this scenario, what are safe actions to take for the ego vehicle?",
+                "Brake gently to a stop.",
+            )
+        )
+    return qa
+
+
+def _key_object_infos(scene_name: str) -> dict[str, dict[str, str]]:
+    # extract_data reads the class as `Visual_description.split('.')[0]`.
+    return {
+        _object_ref(scene_name): {
+            "Category": "Vulnerable road user",
+            "Status": "Moving",
+            "Visual_description": "Pedestrian near the crosswalk.",
+            "2d_bbox": [95.0, 30.0, 125.0, 70.0],
+        }
     }
 
 
@@ -248,6 +292,8 @@ def _make_mini_drivelm() -> None:
         scene_meta.append({"token": scene_token, "name": scene_name})
 
         def _full_image_paths(scene_name: str = scene_name) -> dict[str, str]:
+            # Real DriveLM paths are relative to its `data/QA_dataset_nus/` dir, i.e.
+            # `../nuscenes/samples/...`; the converter normalizes them (normalize_image_path).
             paths = {}
             for cam in CAMERAS:
                 rel = f"samples/{cam}/{scene_name}__{cam}.jpg"
@@ -255,61 +301,52 @@ def _make_mini_drivelm() -> None:
                 cam_dir.mkdir(parents=True, exist_ok=True)
                 if not (OUT_DRIVELM / rel).is_file():
                     _drivelm_image(scene_name, cam).save(OUT_DRIVELM / rel, quality=90)
-                paths[cam] = rel
+                paths[cam] = f"../nuscenes/{rel}"
             return paths
 
         # Every scene gets one clean key_frame, so a scene that also carries a malformed frame
         # (below) still has at least one surviving QA record in its split — a frame-level drop
         # must not silently zero out an entire split (that would defeat the fixture's own
         # purpose: proving the drop accounting works *without* losing split coverage).
-        clean_qa = _drivelm_qa(scene_name)
+        is_train = scene_name in DRIVELM_TRAIN_SCENES
+        clean_qa = _drivelm_qa(scene_name, rich=is_train)
         key_frames = {
             clean_frame_token: {
-                "image_paths": _full_image_paths(),
-                "key_object_infos": {
-                    f"<c1,CAM_FRONT,{100 + len(scene_name)}.0,50.0>": {
-                        "Category": "pedestrian",
-                        "Visual_description": "a pedestrian near the crosswalk",
-                    }
-                },
+                "key_object_infos": _key_object_infos(scene_name),
                 "QA": clean_qa,
+                "image_paths": _full_image_paths(),
             }
         }
 
         if scene_name == "scene-0001":
             # DROP_REASONS["missing_qa_text"]: empty answer, alongside the clean QA above.
-            clean_qa["perception"].append({"Q": "What is behind the ego vehicle?", "A": ""})
+            clean_qa["perception"].append(_qa("What is behind the ego vehicle?", ""))
         if scene_name == "scene-0002":
             # DROP_REASONS["unknown_category"]: key outside DRIVELM_CATEGORIES.
-            clean_qa["misc"] = [{"Q": "Off-taxonomy question?", "A": "Off-taxonomy answer."}]
-            # DROP_REASONS["missing_tag"]: real DriveLM QA always carries a `tag`; a QA item
-            # without one cannot be routed to the vendored scorer's accuracy/chatgpt/language/
-            # match buckets (spec 08 design decision 6), so it is a counted drop, not a silent one.
-            clean_qa["behavior"].append(
-                {
-                    "Q": "What should the ego vehicle do at the junction?",
-                    "A": "Proceed with caution.",
-                }
-            )
+            clean_qa["misc"] = [_qa("Off-taxonomy question?", "Off-taxonomy answer.")]
+        # DROP_REASONS["val_not_in_official_eval"] needs no special case: every val clean frame's
+        # perception[1] is selected by none of extract_data's rules.
         if scene_name == "scene-0003":
             # DROP_REASONS["missing_image_path"]: a second frame missing a camera key entirely.
             bad_token = _token(scene_name + "_frame_missing_view")
             bad_paths = _full_image_paths()
             del bad_paths["CAM_BACK_LEFT"]
             key_frames[bad_token] = {
-                "image_paths": bad_paths,
                 "key_object_infos": {},
-                "QA": _drivelm_qa(scene_name),
+                "QA": _drivelm_qa(scene_name, rich=False),
+                "image_paths": bad_paths,
             }
         if scene_name == "scene-0012":
             # DROP_REASONS["image_file_missing"]: path declared, file never written.
             bad_token = _token(scene_name + "_frame_missing_file")
             bad_paths = _full_image_paths()
-            bad_paths["CAM_BACK_RIGHT"] = f"samples/CAM_BACK_RIGHT/{scene_name}__does_not_exist.jpg"
+            bad_paths["CAM_BACK_RIGHT"] = (
+                f"../nuscenes/samples/CAM_BACK_RIGHT/{scene_name}__does_not_exist.jpg"
+            )
             key_frames[bad_token] = {
-                "image_paths": bad_paths,
                 "key_object_infos": {},
-                "QA": _drivelm_qa(scene_name),
+                "QA": _drivelm_qa(scene_name, rich=False),
+                "image_paths": bad_paths,
             }
 
         scenes[scene_token] = {"key_frames": key_frames}

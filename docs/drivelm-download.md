@@ -67,10 +67,18 @@ data/
 This matches `DriveLMConfig.annotations` (`data/drivelm/v1_1_train_nus.json`),
 `DriveLMConfig.nuscenes_root` (`data/nuscenes`), and `DriveLMConfig.scene_meta`
 (`data/nuscenes/v1.0-trainval/scene.json`) in `configs/drivelm.yaml`. DriveLM's own
-`image_paths` entries are relative to the nuScenes root (`"samples/CAM_FRONT/xxxxx.jpg"`), which is
-why `nuscenes_root` and the DriveLM annotation file are configured separately — the converter joins
-them (`images_root / rel` in `gdp.data.drivelm.convert_drivelm`) rather than assuming a shared
-prefix. `gdp data prepare-drivelm` writes converted output to `runs/06-data/<timestamp>/`, never
+`image_paths` entries are written relative to *its* `data/QA_dataset_nus/` directory
+(`"../nuscenes/samples/CAM_FRONT/xxxxx.jpg"`, verified on the real file 2026-09-24).
+`gdp.data.drivelm.normalize_image_path` strips the `../nuscenes/` prefix, and the converter
+then joins `nuscenes_root / "samples/…"`. That is why `nuscenes_root` and the DriveLM annotation
+file are configured separately.
+
+**Images without the nuScenes blobs (what this project actually did, [SEQ-0140]):** DriveLM's
+gated HF dataset `OpenDriveLab/DriveLM` ships `drivelm_nus_imgs_train.zip` (3.5 GB, 24,432 jpgs:
+the six cameras of all 4,072 key frames). Unzipped into `data/`, it yields exactly
+`data/nuscenes/samples/CAM_*/`. Only `v1.0-trainval_meta.tgz` (for `scene.json`) is needed from
+nuscenes.org. **Tags:** the answered file has no scorer `tag`s; they come from the vendored
+`extract_data.py` (`third_party/drivelm/PROVENANCE.md`, spec 06 status note). `gdp data prepare-drivelm` writes converted output to `runs/06-data/<timestamp>/`, never
 back into `data/`, which stays exactly as downloaded.
 
 ## 3 · Checksum manifest

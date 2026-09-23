@@ -12,6 +12,7 @@ which is exactly what H2/H9 (CLAUDE.md §2) forbid.
 |---|---|
 | `evaluation.py` | `challenge/evaluation.py` |
 | `gpt_eval.py` | `challenge/gpt_eval.py` (imported by `evaluation.py` for the ChatGPT sub-metric) |
+| `extract_data.py` | `challenge/extract_data.py`: selects and **tags** the QA the challenge evaluates (added 2026-09-24, [SEQ-0144]) |
 
 ## Where from
 
@@ -26,13 +27,46 @@ Fetched verbatim via:
 ```
 curl -s https://raw.githubusercontent.com/OpenDriveLab/DriveLM/266b570f1c746a4cad7f8f0317eb3c2f99141512/challenge/evaluation.py
 curl -s https://raw.githubusercontent.com/OpenDriveLab/DriveLM/266b570f1c746a4cad7f8f0317eb3c2f99141512/challenge/gpt_eval.py
+curl -s https://raw.githubusercontent.com/OpenDriveLab/DriveLM/266b570f1c746a4cad7f8f0317eb3c2f99141512/challenge/extract_data.py
 ```
+`extract_data.py` was retrieved 2026-09-24 at the same pinned commit; sha256
+`4665d3e101347bcc21061dad248d03a4af2d390dc7ed81e2b596d434ac9d0507`, byte-identical to `main` on that
+date.
 
 ## Integrity
 
 `sha256(evaluation.py)` is stamped into every `metrics.json` this repo writes (see
 `gdp.vqa.official.scorer_sha256`), so any later divergence from the pinned commit is visible in the
 artifact itself, not just in this file.
+
+## Where the `tag`s come from (`extract_data.py`)
+
+DriveLM's answered train file (`v1_1_train_nus.json`) carries **no** `tag` on any of its 377,956
+QA items; progress_report [SEQ-0143] found this when a converter that required one kept 0 of them.
+The tags `evaluation.py` routes on are assigned by `extract_data.py`, which also *selects* the few
+QA per key frame that the challenge evaluates. Rules, read from the pinned file:
+
+| Category | Selected (per frame) | Tag |
+|---|---|---|
+| perception | first QA whose answer contains every object class (`Visual_description.split('.')[0]`) | `[2]` |
+| perception | first "What is the moving status of object" question | `[0]` |
+| prediction | first QA whose answer contains every object location key | `[3]` |
+| prediction | first QA whose answer contains the substring "yes" or "no" | `[0]` |
+| planning | first of each: "What actions could the ego vehicle take" / "lead to a collision" / "safe actions" | `[1]` |
+| behavior | all | `[0]` |
+
+Rules are kept exactly as written, including the substring yes/no test (which also matches
+"not", "know", …) and re-tagging when one QA matches two rules. Fixing them would be inventing a
+benchmark (H9). `gdp.data.drivelm_official.official_eval_tags` runs the file unmodified (its
+`print()`s are captured, not removed) and maps its output back onto our records by
+(scene, frame, category, question, answer). `gdp.data.drivelm`: every **val** record is an
+extract_data selection; **train** keeps every clean QA, with `tag: []` where unselected, because tags
+only route scoring. The file's sha256 is stamped into `stats_{train,val}.json` → `tag_source`.
+
+**Consequence, given the known gap below:** planning is tagged only `[1]` (ChatGPT judge), so
+**planning receives no official score** in this repo. Prediction's location item is `[3]`
+(match, also judge-fused), so prediction is scored through its yes/no item only. Planning answers
+are generated and shown qualitatively and labelled unscored. They never get a substitute metric.
 
 ## Sub-metric routing and final-score weighting (read out of the vendored file, not from memory)
 
