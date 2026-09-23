@@ -17,9 +17,10 @@ match structurally impossible rather than merely unlikely.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, PeftModel, get_peft_model
 
 from gdp.config import Config
 
@@ -38,6 +39,18 @@ def attach_lora(model: Any, cfg: Config) -> Any:
         task_type="CAUSAL_LM",
     )
     peft_model = get_peft_model(model, lora_config)
+    assert_vision_tower_frozen(peft_model)
+    return peft_model
+
+
+def load_lora_for_resume(model: Any, checkpoint_dir: str | Path) -> Any:
+    """Wrap `model` with the LoRA adapter saved in `checkpoint_dir`, trainable.
+
+    A resume must continue from the checkpoint's adapter weights. `VLMTrainer.resume` restores
+    only step/optimizer/schedule, so attaching a *fresh* adapter (`attach_lora`) there would put
+    step N's optimizer onto an untrained adapter and silently discard all prior training (the
+    same bug fixed for the detector in progress_report [SEQ-0130])."""
+    peft_model = PeftModel.from_pretrained(model, str(checkpoint_dir), is_trainable=True)
     assert_vision_tower_frozen(peft_model)
     return peft_model
 

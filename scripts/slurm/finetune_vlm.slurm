@@ -31,9 +31,9 @@ set -euo pipefail
 # scripts/slurm/finetune_detector.slurm). Each step's result path is cached in $STATE_DIR after it
 # succeeds; a re-submitted job skips every already-completed step. The one caveat, identical to
 # spec 03's job: `gdp train vlm` always writes to a FRESH runs/07-finetune-vlm/<ts>/ (no --out-dir
-# flag), so a job killed mid-training and resubmitted resumes the OPTIMIZER STEP from the latest
-# checkpoint-N it can find on disk (via --resume), but that continuation lands in a new
-# timestamped directory rather than the original one.
+# flag), so a job killed mid-training and resubmitted resumes the adapter weights, optimizer, LR
+# schedule and step from the latest post-gate checkpoint-N (via --resume), but that continuation
+# lands in a new timestamped directory and starts a freshly shuffled epoch.
 
 cd "$SLURM_SUBMIT_DIR"
 export WANDB_PROJECT=gdp-finetune-vlm               # WANDB_API_KEY, if set, turns on curve logging
@@ -87,7 +87,20 @@ run_step overfit_gate \
 
 # --- 2. The real fine-tuning run. If a checkpoint from a previously-killed attempt exists on
 # disk, resume from its latest step rather than restarting at 0 (see the resumability note above).
-LATEST_CKPT=$(ls -dt runs/07-finetune-vlm/*/checkpoint-* 2>/dev/null | head -1 || true)
+# Only checkpoints written AFTER the overfit gate passed are candidates: the gate's own adapter
+# (16 QA pairs, 200-step schedule) sits in runs/07-finetune-vlm/ too, and a bare
+# `ls -dt runs/07-finetune-vlm/*/checkpoint-*` would pick it up on the very first submission (the
+# detector job had exactly this bug, progress_report [SEQ-0130]). A checkpoint without
+# trainer_state.pt (written last) was cut off mid-save and is skipped.
+CANDIDATES=()
+while IFS= read -r ckpt; do
+  if [[ -f "$ckpt/trainer_state.pt" ]]; then CANDIDATES+=("$ckpt"); fi
+done < <(find runs/07-finetune-vlm -mindepth 2 -maxdepth 2 -type d -name 'checkpoint-*' \
+           -newer "$STATE_DIR/overfit_gate.path" 2>/dev/null)
+LATEST_CKPT=""
+if (( ${#CANDIDATES[@]} )); then
+  LATEST_CKPT=$(ls -dt "${CANDIDATES[@]}" | head -1)
+fi
 RESUME_ARGS=()
 if [[ -n "$LATEST_CKPT" ]]; then
   echo "==> resuming fine-tuning from $LATEST_CKPT" >&2

@@ -93,3 +93,43 @@ def test_finetune_job_never_resumes_from_the_overfit_gate_checkpoint():
     script = resolve("scripts/slurm/finetune_detector.slurm").read_text()
     assert "LATEST_CKPT=$(ls -dt runs/03-finetune/*/checkpoint-*" not in script
     assert '-newer "$STATE_DIR/overfit_gate.path"' in script
+
+
+@pytest.mark.parametrize("resume", [None, "runs/07-finetune-vlm/x/checkpoint-200"])
+def test_train_vlm_loads_the_adapter_from_the_resume_checkpoint(monkeypatch, tmp_path, resume):
+    """Same contract as the detector: `--resume` must load the checkpoint's LoRA adapter, since
+    `VLMTrainer.resume` restores only step, optimizer and schedule."""
+    seen = []
+
+    def fake_resume_loader(model, checkpoint_dir):
+        seen.append(("resume", checkpoint_dir))
+        raise _Loaded
+
+    def fake_attach(model, cfg):
+        seen.append(("fresh", None))
+        raise _Loaded
+
+    monkeypatch.setattr(gdp.cli.AutoProcessor, "from_pretrained", lambda *a, **k: None)
+    monkeypatch.setattr(
+        gdp.cli.Qwen2_5_VLForConditionalGeneration, "from_pretrained", lambda *a, **k: object()
+    )
+    monkeypatch.setattr(gdp.cli, "run_dir", lambda spec: tmp_path)
+    monkeypatch.setattr(gdp.cli, "load_jsonl", lambda path: [])
+    monkeypatch.setattr(gdp.cli, "load_lora_for_resume", fake_resume_loader)
+    monkeypatch.setattr(gdp.cli, "attach_lora", fake_attach)
+    train_jsonl = tmp_path / "train.jsonl"
+    train_jsonl.write_text("")
+
+    args = ["train", "vlm", "--train-jsonl", str(train_jsonl)]
+    if resume:
+        args += ["--resume", resume]
+    result = runner.invoke(app, args)
+
+    assert isinstance(result.exception, _Loaded)
+    assert seen == [("resume", resume) if resume else ("fresh", None)]
+
+
+def test_vlm_job_never_resumes_from_the_overfit_gate_checkpoint():
+    script = resolve("scripts/slurm/finetune_vlm.slurm").read_text()
+    assert "LATEST_CKPT=$(ls -dt runs/07-finetune-vlm/*/checkpoint-*" not in script
+    assert '-newer "$STATE_DIR/overfit_gate.path"' in script

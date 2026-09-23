@@ -16,6 +16,7 @@ from gdp.vqa.lora import (
     LM_TARGET_RE,
     assert_vision_tower_frozen,
     attach_lora,
+    load_lora_for_resume,
     trainable_parameter_summary,
 )
 
@@ -118,3 +119,26 @@ def test_bare_short_name_target_modules_would_leak_into_vision_tower():
     peft_model = get_peft_model(model, bare_config)
     with pytest.raises(RuntimeError, match="vision tower"):
         assert_vision_tower_frozen(peft_model)
+
+
+def test_load_lora_for_resume_restores_the_saved_adapter_trainable(cfg, tmp_path):
+    """A resume must continue from the checkpoint's adapter, not a fresh one ([SEQ-0139]; the
+    detector had the same bug, [SEQ-0130]). A fresh LoRA has lora_B == 0, so non-zero saved
+    values prove the weights came from disk."""
+    import torch
+
+    trained = attach_lora(make_tiny_qwen_vl(), cfg)
+    with torch.no_grad():
+        for name, param in trained.named_parameters():
+            if "lora_B" in name:
+                param.fill_(0.5)
+    saved = {n: p.detach().clone() for n, p in trained.named_parameters() if "lora_" in n}
+    trained.save_pretrained(tmp_path)
+
+    resumed = load_lora_for_resume(make_tiny_qwen_vl(), tmp_path)
+    loaded = {n: p for n, p in resumed.named_parameters() if "lora_" in n}
+
+    assert loaded.keys() == saved.keys()
+    for name, value in saved.items():
+        assert torch.equal(loaded[name].detach(), value), name
+        assert loaded[name].requires_grad, f"{name} loaded frozen (is_trainable missing)"

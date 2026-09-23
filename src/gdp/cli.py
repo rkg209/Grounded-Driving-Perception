@@ -88,7 +88,12 @@ from gdp.vqa.generate import answer as vqa_answer
 from gdp.vqa.generate import load_adapter
 from gdp.vqa.hallucination import hallucination_stats
 from gdp.vqa.labels import processor_pixel_budget
-from gdp.vqa.lora import LM_TARGET_RE, attach_lora, trainable_parameter_summary
+from gdp.vqa.lora import (
+    LM_TARGET_RE,
+    attach_lora,
+    load_lora_for_resume,
+    trainable_parameter_summary,
+)
 from gdp.vqa.official import OfficialScorerUnavailable
 from gdp.vqa.predict import load_predictions, predict_split
 from gdp.vqa.score import annotate_per_item, build_vqa_metrics, write_per_item, write_vqa_metrics
@@ -689,7 +694,10 @@ def train_detector(
     ] = None,
     resume: Annotated[
         str | None,
-        typer.Option("--resume", help="A checkpoint-<step> dir to restore step/optimizer from."),
+        typer.Option(
+            "--resume",
+            help="A checkpoint-<step> dir to restore weights, step, optimizer and schedule from.",
+        ),
     ] = None,
 ) -> None:
     """Fine-tune the detector on BDD100K train (spec 03, H1: adapting a pretrained backbone).
@@ -819,7 +827,10 @@ def train_vlm(
     ] = None,
     resume: Annotated[
         str | None,
-        typer.Option("--resume", help="A checkpoint-<step> dir to restore step/optimizer from."),
+        typer.Option(
+            "--resume",
+            help="A checkpoint-<step> dir to restore weights, step, optimizer and schedule from.",
+        ),
     ] = None,
 ) -> None:
     """LoRA fine-tune Qwen2.5-VL-3B on DriveLM (spec 07, H1: adapting a pretrained VLM).
@@ -850,7 +861,9 @@ def train_vlm(
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(cfg.vlm.model_id)
 
     out_dir = run_dir("07-finetune-vlm")
-    model = attach_lora(model, cfg)
+    # A resume continues from the checkpoint's adapter; `trainer.resume` below restores only
+    # step/optimizer/schedule, so a fresh adapter here would silently discard prior training.
+    model = load_lora_for_resume(model, resume) if resume else attach_lora(model, cfg)
 
     dataset = DriveLMVQADataset(
         records,
