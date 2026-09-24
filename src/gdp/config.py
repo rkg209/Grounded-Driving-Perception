@@ -230,6 +230,7 @@ class VLMConfig:
 # buckets in spec 08's per-category accuracy. An unknown category key is a counted drop, never a
 # coerced one.
 DRIVELM_CATEGORIES: tuple[str, ...] = ("perception", "prediction", "planning", "behavior")
+DRIVELM_VAL_SOURCES: tuple[str, ...] = ("nuscenes_official", "train_scene_holdout")
 
 
 @dataclass
@@ -245,6 +246,15 @@ class DriveLMConfig:
     # (spec 06 design decision 7). Val is never subsampled — no config field controls it.
     train_scene_fraction: float = 1.0
     subsample_seed: int = 42
+    # Where val comes from. "nuscenes_official": scenes in the official nuScenes val list. That is
+    # empty for real DriveLM, whose answered file is 696/696 nuScenes-train scenes
+    # (progress_report [SEQ-0147]). "train_scene_holdout": a seeded, scene-level holdout of the
+    # answered file, chosen from scene tokens alone (before any model output) and written to
+    # holdout.json. Official questions, answers and scorer, but a partition we define, labelled
+    # that way everywhere (gdp.data.drivelm_stats).
+    val_source: str = "nuscenes_official"
+    holdout_fraction: float = 0.15
+    holdout_seed: int = 42
     categories: list[str] = field(default_factory=lambda: list(DRIVELM_CATEGORIES))
 
     def annotations_path(self) -> Path:
@@ -263,6 +273,14 @@ class DriveLMConfig:
         if not 0.0 < self.train_scene_fraction <= 1.0:
             raise ValueError(
                 f"drivelm.train_scene_fraction must be in (0, 1], got {self.train_scene_fraction}"
+            )
+        if self.val_source not in DRIVELM_VAL_SOURCES:
+            raise ValueError(
+                f"drivelm.val_source must be one of {DRIVELM_VAL_SOURCES}, got {self.val_source!r}"
+            )
+        if not 0.0 < self.holdout_fraction < 1.0:
+            raise ValueError(
+                f"drivelm.holdout_fraction must be in (0, 1), got {self.holdout_fraction}"
             )
         if not self.categories:
             raise ValueError("drivelm.categories must not be empty")

@@ -218,3 +218,26 @@ def test_vqa_score_and_failures_end_to_end_fixture_chain(val_jsonl_path):
     assert failures_md.is_file()
     text = failures_md.read_text()
     assert "Generated fields" in text
+
+
+def test_scoring_takes_split_labels_from_the_val_sidecar(tmp_path):
+    """metrics.json must say which val it was scored on: the labels `prepare-drivelm` wrote beside
+    val.jsonl win over the config ([SEQ-0148])."""
+    from gdp.cli import _val_split_labels
+    from gdp.config import load_config
+
+    val_jsonl = tmp_path / "val.jsonl"
+    val_jsonl.write_text("")
+    sidecar = {
+        "split": "val",
+        "split_provenance": "P",
+        "official_split": "drivelm-v1.1-train-scene-holdout",
+        "caveat": "C",
+    }
+    (tmp_path / "stats_val.json").write_text(json.dumps(sidecar))
+    labels = _val_split_labels(val_jsonl, load_config("configs/default.yaml"))
+    assert labels == {k: sidecar[k] for k in ("split_provenance", "official_split", "caveat")}
+
+    (tmp_path / "stats_val.json").unlink()
+    fallback = _val_split_labels(val_jsonl, load_config("configs/default.yaml"))
+    assert fallback["official_split"] == "nuscenes-v1.0-trainval"

@@ -840,3 +840,66 @@ def test_compare_dump_pairs_saves_a_miss_to_hit_crop(clean_03_finetune_runs, tmp
     saved = list(pairs_dir.iterdir())
     assert len(saved) == 1
     assert "pedestrian" in saved[0].name
+
+
+def _write_overlay(tmp_path, drivelm: dict) -> str:
+    path = tmp_path / "overlay.yaml"
+    path.write_text(json.dumps({"drivelm": drivelm}))  # JSON is valid YAML
+    return str(path)
+
+
+def test_prepare_drivelm_holdout_writes_holdout_json_and_labels(tmp_path, clean_06_data_runs):
+    """[SEQ-0148]: val_source=train_scene_holdout writes holdout.json and labels every artifact a
+    holdout, never the official split."""
+    overlay = _write_overlay(
+        tmp_path, {"val_source": "train_scene_holdout", "holdout_fraction": 0.5}
+    )
+    result = runner.invoke(
+        app,
+        [
+            "data",
+            "prepare-drivelm",
+            "-c",
+            "configs/default.yaml",
+            "-c",
+            overlay,
+            "--dataset",
+            "mini_drivelm",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    latest = max(resolve("runs/06-data").iterdir(), key=lambda p: p.stat().st_mtime)
+    holdout = json.loads((latest / "holdout.json").read_text())
+    assert holdout["n_scenes"] == 1  # round(0.5 * 2 nuScenes-train fixture scenes)
+    assert holdout["scene_names"][0] in {"scene-0001", "scene-0002"}
+    val_stats = json.loads((latest / "stats_val.json").read_text())
+    assert val_stats["official_split"] == "drivelm-v1.1-train-scene-holdout"
+    assert "NOT the official DriveLM val/test split" in val_stats["caveat"]
+    val_tokens = {json.loads(line)["scene_token"] for line in (latest / "val.jsonl").open()}
+    assert set(holdout["scene_tokens"]) <= val_tokens
+
+
+def test_prepare_drivelm_refuses_an_empty_val(tmp_path, clean_06_data_runs):
+    """[SEQ-0147]: an all-nuScenes-train file under val_source=nuscenes_official once produced an
+    empty val.jsonl with exit 0. It must fail and say why."""
+    raw = json.loads(resolve("tests/fixtures/mini_drivelm/v1_1_mini_nus.json").read_text())
+    meta = json.loads(resolve("tests/fixtures/mini_drivelm/scene.json").read_text())
+    train_tokens = {m["token"] for m in meta if m["name"] in {"scene-0001", "scene-0002"}}
+    only_train = tmp_path / "only_train.json"
+    only_train.write_text(json.dumps({t: s for t, s in raw.items() if t in train_tokens}))
+    overlay = _write_overlay(tmp_path, {"annotations": str(only_train)})
+    result = runner.invoke(
+        app,
+        [
+            "data",
+            "prepare-drivelm",
+            "-c",
+            "configs/default.yaml",
+            "-c",
+            overlay,
+            "--dataset",
+            "mini_drivelm",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "val split is empty" in result.output

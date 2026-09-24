@@ -25,6 +25,38 @@ CAVEAT = (
     "scene-clean. It is NOT the DriveLM leaderboard split."
 )
 
+HOLDOUT_SPLIT_PROVENANCE = (
+    "seeded scene-level holdout of DriveLM's answered train file — holdout.json "
+    "(gdp.data.drivelm.select_holdout_scenes)"
+)
+HOLDOUT_OFFICIAL_SPLIT = "drivelm-v1.1-train-scene-holdout"
+
+
+def holdout_caveat(fraction: float, seed: int) -> str:
+    return (
+        "DriveLM-nuScenes' answered file contains only nuScenes-train scenes (696/696); its "
+        "official val/test answers are withheld and scored only by DriveLM's own server. This "
+        f"val is a seeded (seed {seed}) {fraction:.0%} scene-level holdout of the answered train "
+        "file, scene-clean, evaluated on DriveLM's own extract_data.py selection with its own "
+        "scorer. It is NOT the official DriveLM val/test split and NOT leaderboard-comparable."
+    )
+
+
+def split_labels(val_source: str, *, holdout_fraction: float, holdout_seed: int) -> dict[str, str]:
+    """`split_provenance` / `official_split` / `caveat` for a conversion's val source. Every
+    artifact carries these, so a holdout number can never pass as an official-split one."""
+    if val_source == "train_scene_holdout":
+        return {
+            "split_provenance": HOLDOUT_SPLIT_PROVENANCE,
+            "official_split": HOLDOUT_OFFICIAL_SPLIT,
+            "caveat": holdout_caveat(holdout_fraction, holdout_seed),
+        }
+    return {
+        "split_provenance": SPLIT_PROVENANCE,
+        "official_split": OFFICIAL_SPLIT,
+        "caveat": CAVEAT,
+    }
+
 
 def build_drivelm_stats(
     records: list[DriveLMRecord],
@@ -33,6 +65,7 @@ def build_drivelm_stats(
     split: str,
     source_file: Path,
     is_synthetic: bool,
+    labels: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Assemble the sanity report for one split's surviving records.
 
@@ -53,8 +86,13 @@ def build_drivelm_stats(
         "source": {"file": source_file.name, "sha256": _sha256(source_file)},
         "git_sha": git_sha(),
         "created": datetime.now(UTC).isoformat(),
-        "split_provenance": SPLIT_PROVENANCE,
-        "official_split": OFFICIAL_SPLIT,
+        **(
+            labels
+            or {
+                "split_provenance": SPLIT_PROVENANCE,
+                "official_split": OFFICIAL_SPLIT,
+                "caveat": CAVEAT,
+            }
+        ),
         "is_synthetic": is_synthetic,
-        "caveat": CAVEAT,
     }

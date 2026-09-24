@@ -261,3 +261,59 @@ def test_frame_missing_key_object_infos_is_a_clear_error(drivelm_cfg):
             categories=tuple(drivelm_cfg.categories),
             is_synthetic=True,
         )
+
+
+def _holdout(raw, drivelm_cfg, *, fraction=0.5, seed=42):
+    from gdp.data.drivelm import select_holdout_scenes
+
+    return select_holdout_scenes(
+        raw,
+        scene_meta=load_scene_meta(drivelm_cfg.scene_meta_path()),
+        splits=load_official_splits(),
+        fraction=fraction,
+        seed=seed,
+    )
+
+
+def test_holdout_is_deterministic_and_drawn_only_from_nuscenes_train(raw, drivelm_cfg):
+    names = load_scene_meta(drivelm_cfg.scene_meta_path())
+    first = _holdout(raw, drivelm_cfg)
+    assert first == _holdout(raw, drivelm_cfg)
+    assert len(first) == 1
+    assert names[first[0]] in {"scene-0001", "scene-0002"}  # the fixture's nuScenes-train scenes
+
+
+def test_holdout_rejects_fractions_outside_open_unit_interval(raw, drivelm_cfg):
+    for bad in (0.0, 1.0):
+        with pytest.raises(ValueError, match="holdout fraction"):
+            _holdout(raw, drivelm_cfg, fraction=bad)
+
+
+def test_holdout_scenes_become_val_and_keep_only_official_selections(raw, drivelm_cfg):
+    holdout = frozenset(_holdout(raw, drivelm_cfg))
+    train, val, stats = convert_drivelm(
+        raw,
+        scene_meta=load_scene_meta(drivelm_cfg.scene_meta_path()),
+        splits=load_official_splits(),
+        images_root=drivelm_cfg.nuscenes_root_path(),
+        categories=tuple(drivelm_cfg.categories),
+        is_synthetic=True,
+        holdout_scene_tokens=holdout,
+    )
+    held = [r for r in val if r.scene_token in holdout]
+    assert held and all(r.tag for r in held)
+    assert holdout.isdisjoint({r.scene_token for r in train})
+    assert stats.dropped["val_not_in_official_eval"] > 0
+
+
+def test_unknown_holdout_token_is_an_error(raw, drivelm_cfg):
+    with pytest.raises(ValueError, match="holdout scene tokens not in the DriveLM file"):
+        convert_drivelm(
+            raw,
+            scene_meta=load_scene_meta(drivelm_cfg.scene_meta_path()),
+            splits=load_official_splits(),
+            images_root=drivelm_cfg.nuscenes_root_path(),
+            categories=tuple(drivelm_cfg.categories),
+            is_synthetic=True,
+            holdout_scene_tokens=frozenset({"not-a-token"}),
+        )

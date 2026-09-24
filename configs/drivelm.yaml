@@ -11,5 +11,12 @@ drivelm:
   out_dir: data/drivelm
   train_scene_fraction: 1.0
   subsample_seed: 42
+  # DriveLM's answered file is 696/696 nuScenes-train scenes, so the official nuScenes val list
+  # selects nothing ([SEQ-0147]). Val = a seeded 15% scene-level holdout of it (user decision
+  # 2026-09-24), fixed here before any model output exists. It is labelled a holdout in every
+  # artifact, never the official DriveLM val; the official val goes to DriveLM's own server.
+  val_source: train_scene_holdout
+  holdout_fraction: 0.15
+  holdout_seed: 42
 
 device: auto

@@ -139,6 +139,7 @@ def convert_drivelm(
     images_root: str | Path,
     categories: tuple[str, ...] = DRIVELM_CATEGORIES,
     is_synthetic: bool,
+    holdout_scene_tokens: frozenset[str] = frozenset(),
 ) -> tuple[list[DriveLMRecord], list[DriveLMRecord], ConversionStats]:
     """Convert DriveLM's raw nested JSON into flat train/val record lists.
 
@@ -149,6 +150,9 @@ def convert_drivelm(
 
     Deterministic: scenes/frames/categories/QA are all walked in sorted-key order, so re-running
     on the same input produces byte-identical output.
+
+    `holdout_scene_tokens` (from `select_holdout_scenes`) moves those scenes to val. Every other
+    scene keeps its official nuScenes split.
     """
     images_root = Path(images_root)
     stats = ConversionStats()
@@ -157,8 +161,14 @@ def convert_drivelm(
     # Every scene's split first, so an unknown scene token fails with its own error before any
     # other processing.
     scene_splits = {
-        token: resolve_split(token, scene_meta=scene_meta, splits=splits) for token in raw
+        token: "val"
+        if token in holdout_scene_tokens
+        else resolve_split(token, scene_meta=scene_meta, splits=splits)
+        for token in raw
     }
+    unknown_holdout = holdout_scene_tokens - scene_splits.keys()
+    if unknown_holdout:
+        raise ValueError(f"holdout scene tokens not in the DriveLM file: {sorted(unknown_holdout)}")
     # Scorer-routing tags come from DriveLM's own extract_data.py, run verbatim over the whole file
     # (it is per-frame, so running it before the split changes nothing) — never assigned here.
     official_tags, stats.official_eval_entries = official_eval_tags(raw)
@@ -223,6 +233,34 @@ def convert_drivelm(
 
     assert_no_scene_overlap(train_records, val_records)
     return train_records, val_records, stats
+
+
+def select_holdout_scenes(
+    raw: dict[str, Any],
+    *,
+    scene_meta: dict[str, str],
+    splits: OfficialSplits,
+    fraction: float,
+    seed: int,
+) -> list[str]:
+    """A seeded, scene-level holdout drawn from the file's **nuScenes-train** scenes.
+
+    Real DriveLM's answered file is 696/696 nuScenes-train ([SEQ-0147]), so the official nuScenes
+    val list selects nothing. This picks `round(fraction * n)` whole scenes with
+    `random.Random(seed)` over the sorted scene tokens. It depends on scene tokens alone, never
+    on QA content or any model output, so the split is fixed before anything is scored.
+    """
+    if not 0.0 < fraction < 1.0:
+        raise ValueError(f"holdout fraction must be in (0, 1), got {fraction}")
+    train_tokens = sorted(
+        t for t in raw if resolve_split(t, scene_meta=scene_meta, splits=splits) == "train"
+    )
+    if len(train_tokens) < 2:
+        raise ValueError(
+            f"need at least 2 nuScenes-train scenes to hold out, got {len(train_tokens)}"
+        )
+    k = min(max(1, round(fraction * len(train_tokens))), len(train_tokens) - 1)
+    return sorted(random.Random(seed).sample(train_tokens, k))
 
 
 def assert_no_scene_overlap(

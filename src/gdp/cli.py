@@ -25,10 +25,14 @@ from gdp import __version__
 from gdp.config import DRIVELM_CATEGORIES, Config, load_config
 from gdp.data.bdd100k import DEFAULT_IMAGE_HEIGHT, DEFAULT_IMAGE_WIDTH, convert_bdd_to_coco
 from gdp.data.core import load_dataset
-from gdp.data.drivelm import convert_drivelm, subsample_scenes, write_jsonl, write_subsample_json
-from gdp.data.drivelm_stats import CAVEAT as DRIVELM_CAVEAT
-from gdp.data.drivelm_stats import SPLIT_PROVENANCE as DRIVELM_SPLIT_PROVENANCE
-from gdp.data.drivelm_stats import build_drivelm_stats
+from gdp.data.drivelm import (
+    convert_drivelm,
+    select_holdout_scenes,
+    subsample_scenes,
+    write_jsonl,
+    write_subsample_json,
+)
+from gdp.data.drivelm_stats import build_drivelm_stats, split_labels
 from gdp.data.splits import load_official_splits, load_scene_meta
 from gdp.data.stats import build_stats, write_stats
 from gdp.deploy.bench import collect_hardware_info, run_interleaved
@@ -335,8 +339,22 @@ def data_prepare_drivelm(
     raw = json.loads(annotations_path.read_text())
     scene_meta = load_scene_meta(drivelm_cfg.scene_meta_path())
     official_splits = load_official_splits()
+    labels = split_labels(
+        drivelm_cfg.val_source,
+        holdout_fraction=drivelm_cfg.holdout_fraction,
+        holdout_seed=drivelm_cfg.holdout_seed,
+    )
 
     try:
+        holdout: list[str] = []
+        if drivelm_cfg.val_source == "train_scene_holdout":
+            holdout = select_holdout_scenes(
+                raw,
+                scene_meta=scene_meta,
+                splits=official_splits,
+                fraction=drivelm_cfg.holdout_fraction,
+                seed=drivelm_cfg.holdout_seed,
+            )
         train_records, val_records, conv_stats = convert_drivelm(
             raw,
             scene_meta=scene_meta,
@@ -344,11 +362,37 @@ def data_prepare_drivelm(
             images_root=drivelm_cfg.nuscenes_root_path(),
             categories=tuple(drivelm_cfg.categories),
             is_synthetic=is_synthetic,
+            holdout_scene_tokens=frozenset(holdout),
         )
     except (KeyError, ValueError) as exc:
         _die(str(exc))
+    if split in ("val", "both") and not val_records:
+        # [SEQ-0147]: an empty val once passed with exit 0. Never again silently.
+        _die(
+            f"val split is empty (val_source={drivelm_cfg.val_source!r}). Real DriveLM's answered "
+            "file is all nuScenes-train; use drivelm.val_source: train_scene_holdout."
+        )
 
     out_dir = run_dir("06-data")
+    if holdout:
+        name_by_token = scene_meta
+        holdout_path = out_dir / "holdout.json"
+        holdout_path.write_text(
+            json.dumps(
+                {
+                    "val_source": drivelm_cfg.val_source,
+                    "fraction": drivelm_cfg.holdout_fraction,
+                    "seed": drivelm_cfg.holdout_seed,
+                    "n_scenes": len(holdout),
+                    "scene_tokens": holdout,
+                    "scene_names": [name_by_token[t] for t in holdout],
+                    "caveat": labels["caveat"],
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        typer.echo(f"holdout: {len(holdout)} scene(s) -> {holdout_path}")
     wanted_splits = ["train", "val"] if split == "both" else [split]
 
     def _stats_filename(s: str) -> str:
@@ -374,6 +418,7 @@ def data_prepare_drivelm(
             split="train",
             source_file=annotations_path,
             is_synthetic=is_synthetic,
+            labels=labels,
         )
         train_stats_path = write_stats(
             train_stats, out_dir=out_dir, filename=_stats_filename("train")
@@ -388,6 +433,7 @@ def data_prepare_drivelm(
             split="val",
             source_file=annotations_path,
             is_synthetic=is_synthetic,
+            labels=labels,
         )
         val_stats_path = write_stats(val_stats, out_dir=out_dir, filename=_stats_filename("val"))
         typer.echo(f"val: wrote {val_path} and {val_stats_path}")
@@ -1054,6 +1100,22 @@ def vqa_predict(
     typer.echo(f"{model_role}: {len(records)} val item(s) in split -> {result_path}")
 
 
+def _val_split_labels(val_jsonl_path: Path, cfg: Config) -> dict[str, str]:
+    """The val split's own provenance/caveat, read from the stats file `prepare-drivelm` wrote
+    beside it, so metrics.json says which val it was scored on. Falls back to the config only
+    when there is no sidecar (e.g. a hand-built test val.jsonl)."""
+    for name in ("stats_val.json", "stats.json"):
+        sidecar = val_jsonl_path.parent / name
+        if sidecar.is_file():
+            stats = json.loads(sidecar.read_text())
+            if stats.get("split") == "val":
+                return {k: stats[k] for k in ("split_provenance", "official_split", "caveat")}
+    d = cfg.drivelm
+    return split_labels(
+        d.val_source, holdout_fraction=d.holdout_fraction, holdout_seed=d.holdout_seed
+    )
+
+
 def _score_one_model(
     role: str, predictions_path: Path, records: list, cfg: Config, val_jsonl_path: Path
 ) -> tuple[dict, list[dict]]:
@@ -1066,6 +1128,7 @@ def _score_one_model(
         )
 
     is_synthetic = any(r.is_synthetic for r in records)
+    val_labels = _val_split_labels(val_jsonl_path, cfg)
     metrics = build_vqa_metrics(
         model_role=role,
         predictions=predictions,
@@ -1073,8 +1136,8 @@ def _score_one_model(
         cfg=cfg.vqa_eval,
         gdp_cfg=cfg,
         val_jsonl_path=val_jsonl_path,
-        caveat=DRIVELM_CAVEAT,
-        split_provenance=DRIVELM_SPLIT_PROVENANCE,
+        caveat=val_labels["caveat"],
+        split_provenance=val_labels["split_provenance"],
         is_synthetic=is_synthetic,
     )
     metrics["hallucination"] = hallucination_stats(predictions)
