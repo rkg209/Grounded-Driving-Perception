@@ -1,0 +1,8 @@
+# Points `detector.model_id` at the spec-03 fine-tuned checkpoint (job 409265,
+# progress_report.md [SEQ-0145]), backed up locally at [SEQ-0151]. `deploy bench` and `deploy
+# evaluate-variants` have no `--checkpoint` flag (unlike `deploy export`) — they read
+# `cfg.detector.model_id` directly, so this overlay is how the PyTorch variant in those two
+# commands uses the same weights `deploy export` was told to export via `--checkpoint`.
+
+detector:
+  model_id: runs/03-finetune/20260923-032728/checkpoint-209592

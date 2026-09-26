@@ -265,7 +265,7 @@ def render_deployment(entry: dict[str, Any]) -> list[str]:
                 _fmt(latency_row.get("p95")),
                 _fmt(latency_row.get("p99")),
                 _fmt(latency_row.get("fps"), 2),
-                _mib(latency_row.get("peak_rss_bytes")),
+                _mib(latency_row.get("peak_rss_bytes_process_wide")),
             ]
         )
 
@@ -285,6 +285,11 @@ def render_deployment(entry: dict[str, Any]) -> list[str]:
 
     hardware = latency.get("hardware") or {}
     lines += [
+        "",
+        "**Peak RSS is one whole-process high-water mark, not a per-variant measurement** — "
+        "all three variants are benchmarked interleaved in a single process (to cancel thermal "
+        "bias), so this column is identical by construction across every row; it bounds the "
+        "process, not any one variant.",
         "",
         "**Every latency row has its accuracy row beside it (H8)** — a speed win with no mAP "
         "number next to it is half a result.",
@@ -322,6 +327,10 @@ def _hardware(hardware: dict[str, Any]) -> str:
     size = hardware.get("image_size")
     if isinstance(size, list) and len(size) == 2:
         bits.append(f"input {size[0]}×{size[1]}")
+    execution_target = hardware.get("execution_target")
+    if isinstance(execution_target, dict) and execution_target:
+        targets = ", ".join(f"{name}: {target}" for name, target in execution_target.items())
+        bits.append(f"execution target [{targets}]")
     return ", ".join(bits)
 
 

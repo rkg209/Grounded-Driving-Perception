@@ -19,14 +19,21 @@ from typing import Any
 
 @dataclass(frozen=True)
 class BenchResult:
-    """p50/p95/p99/fps over the timed iterations only — warmup never enters this."""
+    """p50/p95/p99/fps over the timed iterations only — warmup never enters this.
+
+    `peak_rss_bytes_process_wide` is `ru_maxrss` for the whole benchmarking process, not this
+    variant alone. `run_interleaved` benchmarks every variant inside one process on purpose (to
+    cancel thermal bias — see its docstring), so every variant's `BenchResult` in a given run
+    reports the *same* number. It is real memory pressure, just not a per-variant measurement;
+    never quote it as one (spec 05 Action 4).
+    """
 
     variant: str
     p50: float
     p95: float
     p99: float
     fps: float
-    peak_rss_bytes: int
+    peak_rss_bytes_process_wide: int
     warmup_iters: int
     timed_iters: int
     interleaved: bool = False
@@ -63,7 +70,7 @@ def _summarize(
         p95=_percentile(timings, 0.95),
         p99=_percentile(timings, 0.99),
         fps=fps,
-        peak_rss_bytes=_peak_rss_bytes(),
+        peak_rss_bytes_process_wide=_peak_rss_bytes(),
         warmup_iters=warmup,
         timed_iters=iters,
         interleaved=interleaved,
@@ -123,9 +130,21 @@ def run_interleaved(
     }
 
 
-def collect_hardware_info(*, batch_size: int, image_size: tuple[int, int]) -> dict[str, Any]:
+def collect_hardware_info(
+    *,
+    batch_size: int,
+    image_size: tuple[int, int],
+    execution_target: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """A latency number without its hardware is meaningless (the onnx-export skill's words) —
-    written alongside every `latency.json` (`gdp.deploy.metrics.write_latency`)."""
+    written alongside every `latency.json` (`gdp.deploy.metrics.write_latency`).
+
+    `execution_target` names, per variant, the actual torch device or onnxruntime execution
+    provider used (e.g. `{"fp32-pt": "cpu", "fp32-onnx": "CPUExecutionProvider"}`). Without it,
+    a multi-variant latency comparison can silently mix GPU and CPU execution and nothing in the
+    artifact discloses it — the exact bug spec 05 Action 4 fixed (PyTorch resolved to MPS while
+    both ONNX variants ran on CPU, so "PyTorch vs ONNX" was actually "MPS vs CPU").
+    """
     import os
 
     import onnxruntime
@@ -138,4 +157,5 @@ def collect_hardware_info(*, batch_size: int, image_size: tuple[int, int]) -> di
         "thread_count": os.cpu_count() or 1,
         "batch_size": batch_size,
         "image_size": list(image_size),
+        "execution_target": execution_target or {},
     }

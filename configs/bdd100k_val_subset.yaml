@@ -1,0 +1,23 @@
+# Real BDD100K val, a seeded 300-image subset staged locally for spec 05 Action 4 Part B.
+#
+# The M4 laptop's CPU cannot feasibly run the full 10,000-image real val split through three
+# detector variants (fp32-pt, fp32-onnx, int8-onnx) in reasonable wall-clock time — a single
+# forward pass on this CPU costs ~2.8-3.4s, so 10,000 images x 3 variants would take many hours.
+# This subset was sampled with `random.seed(42)` from the real 10,000-image val split's COCO
+# annotations (see progress_report.md's Action 4 Part B entry for the exact sampling script).
+# It is real BDD100K data (not synthetic), but it is NOT the official val split — every artifact
+# and every sentence about numbers produced against this config must say "300-image subset of
+# BDD100K val", never "BDD100K val" unqualified. `train` has zero ground-truth boxes in this
+# subset (real val has only 15 total) — its per_class_ap will be `nan`, not a fabricated 0.0.
+#
+# Use: uv run gdp deploy export -c configs/default.yaml -c configs/bdd100k_val_subset.yaml \
+#        --dataset bdd100k --split val --checkpoint <spec-03 checkpoint dir>
+
+dataset:
+  name: bdd100k
+  root: data/bdd100k_val_subset/images/100k
+  annotations: data/bdd100k_val_subset/labels/det_20/det_val_coco.json
+  raw_labels: data/bdd100k/labels/det_20
+  min_boxes_for_eval: 100
+
+device: auto

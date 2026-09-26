@@ -5,7 +5,12 @@
     "processor": "arm",
     "thread_count": 10,
     "batch_size": 1,
-    "image_size": [360, 640]
+    "image_size": [360, 640],
+    "execution_target": {
+      "fp32-pt": "cpu",
+      "fp32-onnx": "CPUExecutionProvider",
+      "int8-onnx": "CPUExecutionProvider"
+    }
   },
   "variants": {
     "fp32-pt": {
@@ -14,7 +19,7 @@
       "p95": 0.501,
       "p99": 0.588,
       "fps": 2.42,
-      "peak_rss_bytes": 5026185216,
+      "peak_rss_bytes_process_wide": 5026185216,
       "warmup_iters": 50,
       "timed_iters": 200,
       "interleaved": true
@@ -25,7 +30,7 @@
       "p95": 0.402,
       "p99": 0.455,
       "fps": 2.95,
-      "peak_rss_bytes": 4831838208,
+      "peak_rss_bytes_process_wide": 5026185216,
       "warmup_iters": 50,
       "timed_iters": 200,
       "interleaved": true
@@ -36,7 +41,7 @@
       "p95": 0.298,
       "p99": 0.341,
       "fps": 4.09,
-      "peak_rss_bytes": 3221225472,
+      "peak_rss_bytes_process_wide": 5026185216,
       "warmup_iters": 50,
       "timed_iters": 200,
       "interleaved": true

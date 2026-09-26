@@ -1833,7 +1833,11 @@ def deploy_bench(
     sample = ds.samples[0]
     box_threshold = cfg.detector.box_threshold
 
-    pt_detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
+    # Pinned to CPU, not `cfg.device` ("auto" -> MPS on this M4): onnxruntime's CPUExecutionProvider
+    # is what both ONNX variants run on below, and comparing MPS-PyTorch against CPU-ONNX isn't a
+    # quantization measurement at all (spec 05 Action 4 — this benchmark's whole point is a fair
+    # like-for-like comparison; the M4's CPU is the honest "edge target" per H3).
+    pt_detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device="cpu")
     fp32_onnx_detector = OnnxDetector(out_dir / "model.onnx", cfg.detector, cfg.dataset.classes)
     int8_onnx_detector = OnnxDetector(int8_path, cfg.detector, cfg.dataset.classes)
 
@@ -1849,7 +1853,14 @@ def deploy_bench(
     results = run_interleaved(
         callables, warmup=cfg.deploy.warmup_iters, iters=cfg.deploy.timed_iters
     )
-    hardware = collect_hardware_info(batch_size=1, image_size=(sample.height, sample.width))
+    execution_target = {
+        "fp32-pt": str(pt_detector.device),
+        "fp32-onnx": fp32_onnx_detector.session.get_providers()[0],
+        "int8-onnx": int8_onnx_detector.session.get_providers()[0],
+    }
+    hardware = collect_hardware_info(
+        batch_size=1, image_size=(sample.height, sample.width), execution_target=execution_target
+    )
     latency_path = write_latency(results, hardware=hardware, out_dir=out_dir)
 
     summary = ", ".join(
@@ -1889,7 +1900,10 @@ def deploy_evaluate_variants(
     ds = load_dataset(annotations, images_root)
     box_threshold = cfg.detector.box_threshold
 
-    pt_detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device=cfg.device)
+    # CPU, matching `deploy bench`'s pinning (Action 4): the "fp32-pt" mAP number must describe
+    # the same execution target the latency curve does, or the accuracy-vs-latency pairing is a
+    # mismatched half-truth (H8).
+    pt_detector = GroundingDinoDetector(cfg.detector, cfg.dataset.classes, device="cpu")
     fp32_onnx_detector = OnnxDetector(out_dir / "model.onnx", cfg.detector, cfg.dataset.classes)
     int8_onnx_detector = OnnxDetector(int8_path, cfg.detector, cfg.dataset.classes)
     variant_detectors = {

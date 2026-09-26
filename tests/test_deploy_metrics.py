@@ -96,7 +96,7 @@ def test_write_latency_writes_json(tmp_path):
             p95=0.12,
             p99=0.15,
             fps=10.0,
-            peak_rss_bytes=1_000_000,
+            peak_rss_bytes_process_wide=1_000_000,
             warmup_iters=50,
             timed_iters=200,
             interleaved=True,
