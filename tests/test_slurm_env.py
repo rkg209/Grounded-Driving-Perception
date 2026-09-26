@@ -20,13 +20,14 @@ JOB_SCRIPTS = sorted(SLURM_DIR.glob("*.slurm"))
 
 
 def test_job_scripts_exist():
-    """Five specs have cluster steps; if one disappears, the rest of this file silently passes."""
+    """Six specs have cluster steps; if one disappears, the rest of this file silently passes."""
     assert {p.name for p in JOB_SCRIPTS} == {
         "zeroshot_eval.slurm",
         "finetune_detector.slurm",
         "grounding_eval.slurm",
         "finetune_vlm.slurm",
         "vqa_eval.slurm",
+        "deploy_evaluate.slurm",
     }
 
 

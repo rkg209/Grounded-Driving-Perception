@@ -40,13 +40,20 @@ def evaluate_variant(
 
     `image_ids=[s.image_id for s in samples]` restricts `evaluate_coco_map` to exactly the images
     this variant ran on, the same discipline `gdp detect`/`gdp evaluate` use for `--limit`ed runs.
-    """
-    detections = detector.detect_images(samples, box_threshold=box_threshold)
 
+    Resumable per variant: if `predictions_<variant>.json` already exists in `out_dir` (from a
+    prior run that got this variant done before a walltime kill or crash — real risk on a
+    multi-thousand-image real split, see progress_report.md [SEQ-0159]), detection is skipped and
+    the existing file is re-scored as-is. This does not verify the existing file matches the
+    current `samples`/`box_threshold` — delete it by hand to force a redo after changing either.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     predictions_path = out_dir / f"predictions_{variant}.json"
-    write_predictions(detections, predictions_path)
+
+    if not predictions_path.is_file():
+        detections = detector.detect_images(samples, box_threshold=box_threshold)
+        write_predictions(detections, predictions_path)
 
     image_ids = [s.image_id for s in samples]
     return evaluate_coco_map(gt_path, predictions_path, image_ids=image_ids)
