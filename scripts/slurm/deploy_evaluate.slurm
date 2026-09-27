@@ -11,17 +11,22 @@
                                     # calls into CUDA.
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
-#SBATCH --time=08:00:00            # generous, unmeasured: real per-image cost on Rudra's CPU is
-                                    # unknown (only the contended M4 laptop has been timed: ~2.8s
-                                    # fp32-pt + ~3.0s fp32-onnx + ~3.0s int8-onnx per image)
+#SBATCH --time=24:00:00            # bumped from 08:00:00 after TWO timeouts at exactly 8h
+                                    # (jobs 415185, 416825 — progress_report.md [SEQ-0159]/
+                                    # [SEQ-0160]): fp32-pt alone took ~4.4h, and fp32-onnx alone
+                                    # did not finish within a further 8h on a dedicated A100 node's
+                                    # CPU — this is real, measured cost, not a contention artifact.
+                                    # `gpu` partition allows up to 4 days, so 24h has headroom.
 #SBATCH --output=runs/05-deploy/slurm-%j.out
 #SBATCH --error=runs/05-deploy/slurm-%j.err
 #
 # BEFORE SUBMITTING: `mkdir -p runs/05-deploy` (SLURM cannot create --output's directory and
 # fails silently if it's missing). Requires runs/05-deploy/<ts>/{model.onnx,model.int8.onnx,
 # export_result.json} already present (scp'd from the laptop's Action 4 Part A run,
-# progress_report.md [SEQ-0156]) and `git pull`ed past commit f1f86d0 (the device-pinning fix —
-# without it this job would silently run "fp32-pt" on this node's GPU instead of CPU).
+# progress_report.md [SEQ-0156]) and `git pull`ed past commit 7f7cfa7 (the device-pinning fix AND
+# the per-variant resume — without the former this job would silently run "fp32-pt" on this
+# node's GPU instead of CPU; without the latter, every resubmission redoes every variant already
+# on disk from scratch).
 set -euo pipefail
 
 # Action 4 Part B (REMAINING_ACTION_PLAN.md): compute real mAP for all three spec-05 variants
@@ -32,12 +37,12 @@ set -euo pipefail
 # the same hardware, and the laptop could not finish this step in reasonable time (contended CPU,
 # see [SEQ-0156]).
 #
-# NOT resumable: `gdp deploy evaluate-variants` re-detects and overwrites all three variants'
-# predictions every time it runs, with no partial-completion check (src/gdp/deploy/evaluate.py has
-# no cache/skip logic, unlike the run_step() pattern in zeroshot_eval.slurm/finetune_detector.slurm).
-# A preempted or timed-out job must be resubmitted from scratch, not resumed. If this turns out to
-# take multiple attempts, the fix is to add per-variant resume logic to evaluate.py before
-# resubmitting a third time — do not just keep resubmitting blindly.
+# Resumable PER COMPLETED VARIANT ONLY (src/gdp/deploy/evaluate.py, [SEQ-0159]): a resubmission
+# skips any variant whose predictions_<variant>.json already exists in the run dir, instead of
+# redoing it. It is NOT resumable *within* a variant still in progress when the job dies — there is
+# no mid-variant checkpointing (matching `gdp detect`'s own detect-then-write-once pattern; adding
+# incremental checkpointing here would be new machinery this codebase has no precedent for). A job
+# killed mid-`fp32-onnx` loses that variant's progress entirely and starts it over on resubmission.
 
 cd "$SLURM_SUBMIT_DIR"
 source scripts/slurm/cluster_env.sh
