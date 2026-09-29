@@ -9,7 +9,7 @@ vlm_training:
   lr: 1.0e-4 # LoRA adapters tolerate a higher LR than full fine-tune would; frozen backbone limits blast radius
   weight_decay: 0.0 # LoRA's low-rank update doesn't need weight decay at this subset size
   warmup_ratio: 0.03 # short warmup — LoRA has far fewer trainable params than a full fine-tune
-  epochs: 2 # DriveLM train subset is small; more epochs on the same QA pairs risks memorizing phrasing
+  epochs: 1 # was 2; ~1.5 s per QA pair on an A100 makes one pass over a ~25% scene subsample (~80k pairs, ~10k steps) ~2 x 24h jobs. Subsample fraction is disclosed with the result (H2/H7)
   batch_size: 1 # one multi-image driving scene already fills a GPU at Qwen2.5-VL's dynamic resolution
   grad_accum: 8 # effective batch size 8 without exceeding per-step memory (unlike spec 03, this trainer implements it)
   max_grad_norm: 1.0 # standard clip; LoRA gradients are well-behaved but not unbounded

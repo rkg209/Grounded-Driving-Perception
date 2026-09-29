@@ -917,6 +917,9 @@ def train_vlm(
         cfg.drivelm.nuscenes_root_path(),
         num_views=cfg.vlm.num_views,
         max_seq_len=cfg.vlm_training.max_seq_len,
+        # Eager encoding holds ~34 MB of pixels per pair in RAM and OOM'd on the real train set
+        # (job 419933); encode per draw instead. num_workers stays 0 so drop_stats is one process's.
+        lazy=True,
     )
     if len(dataset) == 0:
         _die(f"no usable QA pairs after encoding and filtering (drop_stats={dataset.drop_stats})")
@@ -968,6 +971,9 @@ def train_vlm(
                 trainer.save_checkpoint()
                 last_saved_step = trainer.step
     ckpt_dir = trainer.save_checkpoint()
+    # Lazy encoding only discovers drops as examples are drawn, so the start-of-run drop_stats in
+    # train_config.json is zeros; the real count is only known now.
+    (out_dir / "drop_stats.json").write_text(json.dumps(dataset.drop_stats, indent=2))
 
     if overfit is not None:
         target = cfg.vlm_training.overfit_loss_target

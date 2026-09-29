@@ -48,8 +48,15 @@ class DriveLMVQADataset(TorchDataset):
     """Encodes every record eagerly at construction (not lazily per `__getitem__`): the only way to
     know whether a record is `seq_too_long` or `answer_boundary_unresolvable` is to fully run it
     through the processor, so there is no cheaper filtering pass to do first. This trades memory for
-    simplicity — fine at this spec's scope (laptop fixtures, and a stratified train subsample on the
-    64G-RAM cluster node, spec 06 design decision 7), not a design that claims to scale unboundedly.
+    simplicity — fine for laptop fixtures, not a design that claims to scale: one CAM_FRONT example
+    holds ~34 MB of float32 pixels, so 64G of RAM caps eager encoding at ~1,800 pairs (job 419933
+    died with a CPU OOM on 321,893).
+
+    `lazy=True` encodes in `__getitem__` instead, so RAM is bounded by the batch, not the dataset.
+    The price is that drops are only discovered when an example is drawn: a dropped record is
+    replaced by the next one in order (wrapping) so the loader never sees a hole, and `drop_stats`
+    counts drops *encountered so far* — read it after training, not before. `len(ds)` is then the
+    number of records, not the number of usable ones.
     """
 
     def __init__(
@@ -59,6 +66,7 @@ class DriveLMVQADataset(TorchDataset):
         nuscenes_root: str | Path,
         num_views: int = 1,
         max_seq_len: int = 4096,
+        lazy: bool = False,
     ) -> None:
         self.processor = processor
         self.nuscenes_root = Path(nuscenes_root)
@@ -66,24 +74,40 @@ class DriveLMVQADataset(TorchDataset):
         self.max_seq_len = max_seq_len
         self.drop_stats: dict[str, int] = dict.fromkeys(DROP_REASONS, 0)
 
-        examples: list[VQAExample] = []
-        for record in records:
-            try:
-                example = self._encode(record)
-            except AnswerBoundaryUnresolvable:
-                self.drop_stats["answer_boundary_unresolvable"] += 1
-                continue
-            if example.input_ids.shape[0] > self.max_seq_len:
-                self.drop_stats["seq_too_long"] += 1
-                continue
-            examples.append(example)
-        self._examples = examples
+        self.lazy = lazy
+        self._records = list(records)
+        self._examples: list[VQAExample] = []
+        if lazy:
+            return
+        for record in self._records:
+            example = self._try_encode(record)
+            if example is not None:
+                self._examples.append(example)
+
+    def _try_encode(self, record: DriveLMRecord) -> VQAExample | None:
+        """The encoded example, or None (with the drop counted) if the record must be dropped."""
+        try:
+            example = self._encode(record)
+        except AnswerBoundaryUnresolvable:
+            self.drop_stats["answer_boundary_unresolvable"] += 1
+            return None
+        if example.input_ids.shape[0] > self.max_seq_len:
+            self.drop_stats["seq_too_long"] += 1
+            return None
+        return example
 
     def __len__(self) -> int:
-        return len(self._examples)
+        return len(self._records) if self.lazy else len(self._examples)
 
     def __getitem__(self, index: int) -> VQAExample:
-        return self._examples[index]
+        if not self.lazy:
+            return self._examples[index]
+        n = len(self._records)
+        for offset in range(n):
+            example = self._try_encode(self._records[(index + offset) % n])
+            if example is not None:
+                return example
+        raise RuntimeError(f"no usable QA pair in {n} records (drop_stats={self.drop_stats})")
 
     def _encode(self, record: DriveLMRecord) -> VQAExample:
         messages = build_messages(record, self.num_views)

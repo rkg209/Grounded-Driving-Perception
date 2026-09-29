@@ -18,13 +18,22 @@ FIXTURE_PHRASES = "tests/fixtures/grounding/phrases_mini.json"
 
 
 @pytest.fixture
-def clean_grounding_data():
-    """`gdp ground sample-frames` writes under data/grounding_eval/, not runs/; clean up after."""
+def clean_grounding_data(tmp_path):
+    """`gdp ground sample-frames` writes under data/grounding_eval/, not runs/. That directory holds
+    the *real* frames.json, overlays and (later) the hand-authored phrases.json, so snapshot it and
+    put it back — a bare `rmtree`-if-new cleanup let this suite overwrite the real frames.json with
+    fixture ids (2026-09-29, `progress_report.md` [SEQ-0165])."""
     data_dir = resolve("data/grounding_eval")
+    backup = tmp_path / "grounding_eval_backup"
     existed_before = data_dir.is_dir()
+    if existed_before:
+        shutil.copytree(data_dir, backup)
+        shutil.rmtree(data_dir)  # each test starts from an empty dir, as a fresh checkout would
     yield
-    if data_dir.is_dir() and not existed_before:
+    if data_dir.is_dir():
         shutil.rmtree(data_dir)
+    if existed_before:
+        shutil.copytree(backup, data_dir)
 
 
 def test_ground_sample_frames_writes_frames_json_and_overlays(clean_grounding_data):
