@@ -293,6 +293,12 @@ def render_deployment(entry: dict[str, Any]) -> list[str]:
         "",
         "**Every latency row has its accuracy row beside it (H8)** — a speed win with no mAP "
         "number next to it is half a result.",
+        "",
+        "**Not comparable to the Stage-1 table above (H8).** These mAPs are scored at the "
+        "operating `box_threshold` (a truncated precision-recall curve), while the Stage-1 "
+        "table is scored at the low score floor; compare the three rows here to each other "
+        "only. Accuracy was computed on cluster CPU and latency on the laptop CPU — different "
+        "machines.",
     ]
     if metrics.get("fixed_prompt"):
         lines += [

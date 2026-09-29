@@ -247,6 +247,13 @@ open-vocabulary forgetting cost." That is a claim a Honda J6/J7 interviewer will
 
 ## Action 4 — Fix the latency benchmark's device asymmetry, then re-run spec 05 on real data
 
+> **✅ DONE 2026-09-29** — see `progress_report.md` [SEQ-0152]–[SEQ-0163]. Part A fixed the
+> MPS-vs-CPU asymmetry; Part B (Rudra job 417516, 17h07m) scored all three variants on the full
+> 10,000-image BDD100K val with the fine-tuned checkpoint: mAP 0.2902 / 0.2905 / 0.2884
+> (fp32-pt / fp32-onnx / int8-onnx), latency on the M4 CPU with no INT8 or ONNX speedup. Scored at
+> `box_threshold` 0.25 — **not comparable to Action 3's 0.2246 -> 0.3003** (0.05 floor). The notes
+> below are kept for the record.
+
 **Action.** Two parts, in order.
 
 *Part A (code, laptop, ~2 h).* Make the three deployment variants comparable and self-describing:

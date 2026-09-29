@@ -83,9 +83,29 @@ inside a generated block fails `uv run pytest tests/test_report_render.py`.
 Zero-shot is the baseline; the fine-tuned number is meaningless without it (H8).
 
 <!-- BEGIN GENERATED: stage1-map -->
-> **Not yet measured.** Blocked on: **spec 03 cluster fine-tuning run (`sbatch scripts/slurm/finetune_detector.slurm`), which itself needs spec 02's zero-shot baseline on real BDD100K**.
->
-> This block is written by `uv run gdp report snapshot && uv run gdp report render` — never typed by hand.
+| Metric | Zero-shot (baseline) | Fine-tuned | Δ |
+|---|---:|---:|---:|
+| mAP@[.50:.95] | 0.225 | 0.300 | +0.076 |
+| mAP@0.50 | 0.384 | 0.523 | +0.139 |
+
+Per class (AP@[.50:.95]), every class the split contains:
+
+| Class | Zero-shot | Fine-tuned | Δ |
+|---|---:|---:|---:|
+| `bicycle` | 0.197 | 0.242 | +0.045 |
+| `bus` | 0.344 | 0.418 | +0.074 |
+| `car` | 0.402 | 0.477 | +0.075 |
+| `motorcycle` | 0.187 | 0.231 | +0.044 |
+| `pedestrian` | 0.232 | 0.346 | +0.114 |
+| `rider` | 0.116 | 0.238 | +0.123 |
+| `traffic light` | 0.168 | 0.249 | +0.081 |
+| `traffic sign` | 0.285 | 0.367 | +0.082 |
+| `train` | 0.012 | 0.025 | +0.013 |
+| `truck` | 0.302 | 0.409 | +0.107 |
+
+**Regressions:** none — no class lost ground under fine-tuning.
+
+_Source: `runs/03-finetune/20260924-153121/comparison.json` (sha256 `f167d1895dc7…`) · dataset `bdd100k`, split `val` · 10000 images · box_threshold 0.25 · zero-shot run 2026-09-22T19:10:55.408908+00:00 · fine-tuned run 2026-09-24T09:44:20.112685+00:00._
 <!-- END GENERATED: stage1-map -->
 
 ### Stage 1 — grounding accuracy (self-built phrase set)
@@ -102,11 +122,21 @@ Zero-shot is the baseline; the fine-tuned number is meaningless without it (H8).
 compute** — nothing more. See *Honest scope* below.
 
 <!-- BEGIN GENERATED: deployment -->
-> **Not yet measured.** Blocked on: **spec 05 re-run on the real BDD100K val split (today's only run used `tests/fixtures/mini_bdd/`)**.
->
-> This block is written by `uv run gdp report snapshot && uv run gdp report render` — never typed by hand.
->
-> A run *does* exist (`runs/05-deploy/20260725-163907/metrics.json`), but last run was on tests/fixtures/ — not a result (H7). It is not rendered as a number, and no option makes it one.
+| Variant | mAP@[.50:.95] | mAP@0.50 | p50 (s) | p95 (s) | p99 (s) | FPS | peak RSS (MiB) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `fp32-pt` | 0.290 | 0.500 | 2.448 | 2.832 | 3.066 | 0.41 | 5798 |
+| `fp32-onnx` | 0.290 | 0.500 | 3.021 | 3.555 | 4.415 | 0.32 | 5798 |
+| `int8-onnx` | 0.288 | 0.500 | 3.037 | 3.500 | 3.747 | 0.32 | 5798 |
+
+**Peak RSS is one whole-process high-water mark, not a per-variant measurement** — all three variants are benchmarked interleaved in a single process (to cancel thermal bias), so this column is identical by construction across every row; it bounds the process, not any one variant.
+
+**Every latency row has its accuracy row beside it (H8)** — a speed win with no mAP number next to it is half a result.
+
+**Not comparable to the Stage-1 table above (H8).** These mAPs are scored at the operating `box_threshold` (a truncated precision-recall curve), while the Stage-1 table is scored at the low score floor; compare the three rows here to each other only. Accuracy was computed on cluster CPU and latency on the laptop CPU — different machines.
+
+> **The exported graph is fixed-vocabulary, not open-vocabulary.** ONNX export freezes the text prompt, so the exported artifact answers only the frozen class list — recorded in the artifact as `fixed_prompt: true`, not discovered later. The open-vocabulary path stays in PyTorch.
+
+_Source: `runs/05-deploy/20260925-034220/metrics.json` (sha256 `5431b729f4e8…`) · latency from `runs/05-deploy/20260925-034220/latency.json` · dataset `bdd100k`, 10000 images · quantization `dynamic` · hardware: arm CPU, 10 threads, onnxruntime 1.28.0, torch 2.13.0, batch 1, input 720×1280, execution target [fp32-pt: cpu, fp32-onnx: CPUExecutionProvider, int8-onnx: CPUExecutionProvider] · warmup discarded, 200 timed iterations, interleaved · run 2026-09-28T11:23:36.354641+00:00._
 <!-- END GENERATED: deployment -->
 
 The accuracy-vs-latency curve itself is written to `runs/05-deploy/<timestamp>/curve.png` by
@@ -119,7 +149,7 @@ The accuracy-vs-latency curve itself is written to `runs/05-deploy/<timestamp>/c
 >
 > This block is written by `uv run gdp report snapshot && uv run gdp report render` — never typed by hand.
 >
-> A run *does* exist (`runs/08-vqa/20260726-204745/comparison.json`), but last run was on tests/fixtures/ — not a result (H7). It is not rendered as a number, and no option makes it one.
+> A run *does* exist (`runs/08-vqa/20260929-031240/comparison.json`), but last run was on tests/fixtures/ — not a result (H7). It is not rendered as a number, and no option makes it one.
 <!-- END GENERATED: stage2-vqa -->
 
 ## Failure analysis

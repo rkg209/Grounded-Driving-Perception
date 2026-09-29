@@ -1,18 +1,94 @@
 {
   "snapshot_version": 1,
-  "created": "2026-07-26T15:49:04.330356+00:00",
-  "git_sha": "497eeec59b60aa3a9ba45a20018e2634362dbfa7",
+  "created": "2026-09-28T22:03:36.854235+00:00",
+  "git_sha": "28f740432aaf45e91bf8f81de50a756a59565a16",
   "stages": {
     "stage1_detection": {
-      "status": "pending",
+      "status": "present",
       "title": "Stage 1 \u00b7 detection mAP",
       "spec": "03-finetune",
       "blocker": "spec 03 cluster fine-tuning run (`sbatch scripts/slurm/finetune_detector.slurm`), which itself needs spec 02's zero-shot baseline on real BDD100K",
-      "reason": "no `runs/03-finetune/*/comparison.json` exists yet \u2014 blocked on: spec 03 cluster fine-tuning run (`sbatch scripts/slurm/finetune_detector.slurm`), which itself needs spec 02's zero-shot baseline on real BDD100K",
-      "source": null,
-      "created": null,
-      "sources": {},
-      "data": {}
+      "reason": null,
+      "source": "runs/03-finetune/20260924-153121/comparison.json",
+      "sha256": "f167d1895dc74962bb69e84bab26efcf8e81e90dedf5fe3a73cc49c00e26c1e5",
+      "created": "2026-09-24T09:44:20.112685+00:00",
+      "sources": {
+        "comparison": {
+          "path": "runs/03-finetune/20260924-153121/comparison.json",
+          "sha256": "f167d1895dc74962bb69e84bab26efcf8e81e90dedf5fe3a73cc49c00e26c1e5"
+        }
+      },
+      "data": {
+        "comparison": {
+          "dataset": "bdd100k",
+          "split": "val",
+          "num_images": 10000,
+          "box_threshold": 0.25,
+          "zeroshot_model_id": "IDEA-Research/grounding-dino-tiny",
+          "finetuned_model_id": "IDEA-Research/grounding-dino-tiny",
+          "zeroshot_created": "2026-09-22T19:10:55.408908+00:00",
+          "finetuned_created": "2026-09-24T09:44:20.112685+00:00",
+          "map_zeroshot": 0.22455794749522323,
+          "map_finetuned": 0.300320487823178,
+          "map_delta": 0.07576254032795476,
+          "map50_zeroshot": 0.38410080862960344,
+          "map50_finetuned": 0.5228084646104104,
+          "map50_delta": 0.13870765598080698,
+          "per_class_ap": {
+            "bicycle": {
+              "before": 0.19686976613632023,
+              "after": 0.24223532517397942,
+              "delta": 0.04536555903765918
+            },
+            "bus": {
+              "before": 0.3444241305811347,
+              "after": 0.41840942850573437,
+              "delta": 0.07398529792459968
+            },
+            "car": {
+              "before": 0.4019640907540084,
+              "after": 0.47671932662482525,
+              "delta": 0.07475523587081684
+            },
+            "motorcycle": {
+              "before": 0.18691344884114539,
+              "after": 0.23071852215547387,
+              "delta": 0.04380507331432848
+            },
+            "pedestrian": {
+              "before": 0.23235130512715899,
+              "after": 0.3459401301659919,
+              "delta": 0.11358882503883291
+            },
+            "rider": {
+              "before": 0.11573682326440626,
+              "after": 0.23845808192988718,
+              "delta": 0.12272125866548092
+            },
+            "traffic light": {
+              "before": 0.16819826752882566,
+              "after": 0.24933628800058652,
+              "delta": 0.08113802047176086
+            },
+            "traffic sign": {
+              "before": 0.28489744924184673,
+              "after": 0.3669853765899265,
+              "delta": 0.08208792734807979
+            },
+            "train": {
+              "before": 0.012097659106461312,
+              "after": 0.024972497249724977,
+              "delta": 0.012874838143263664
+            },
+            "truck": {
+              "before": 0.30212653437092424,
+              "after": 0.4094299018356502,
+              "delta": 0.10730336746472596
+            }
+          },
+          "regressions": []
+        }
+      }
     },
     "grounding": {
       "status": "pending",
@@ -26,84 +102,84 @@
       "data": {}
     },
     "deployment": {
-      "status": "synthetic",
+      "status": "present",
       "title": "Deployment \u00b7 accuracy vs latency",
       "spec": "05-deploy",
       "blocker": "spec 05 re-run on the real BDD100K val split (today's only run used `tests/fixtures/mini_bdd/`)",
-      "reason": "last run was on tests/fixtures/ \u2014 not a result (H7)",
-      "source": "runs/05-deploy/20260725-163907/metrics.json",
-      "sha256": "85112e2e19cfa8946c61660a423203e97ccf18eee085c9c152cd724a6e1d24f8",
-      "created": "2026-07-25T11:47:16.905057+00:00",
+      "reason": null,
+      "source": "runs/05-deploy/20260925-034220/metrics.json",
+      "sha256": "5431b729f4e87e7a1e941e428e24674099674345b6582c33567aa9258a880a0d",
+      "created": "2026-09-28T11:23:36.354641+00:00",
       "sources": {
         "metrics": {
-          "path": "runs/05-deploy/20260725-163907/metrics.json",
-          "sha256": "85112e2e19cfa8946c61660a423203e97ccf18eee085c9c152cd724a6e1d24f8"
+          "path": "runs/05-deploy/20260925-034220/metrics.json",
+          "sha256": "5431b729f4e87e7a1e941e428e24674099674345b6582c33567aa9258a880a0d"
         },
         "latency": {
-          "path": "runs/05-deploy/20260725-163907/latency.json",
-          "sha256": "c34a3ecf6832fe2babcd150059548e3e2e7682f5e0f56090009afe26e04a9533"
+          "path": "runs/05-deploy/20260925-034220/latency.json",
+          "sha256": "4ac936558955ceb93d33dca3f187b1d4f68a9798d3213588affd299dc3de4bd0"
         }
       },
       "data": {
         "metrics": {
-          "dataset": "mini_bdd",
-          "num_images": 4,
-          "is_synthetic": true,
+          "dataset": "bdd100k",
+          "num_images": 10000,
+          "is_synthetic": false,
           "fixed_prompt": true,
           "quantization": "dynamic",
           "prompt": "pedestrian. rider. car. truck. bus. train. motorcycle. bicycle. traffic light. traffic sign.",
           "variants": {
             "fp32-pt": {
-              "map": 0.0,
-              "map50": 0.0,
+              "map": 0.2902060509754105,
+              "map50": 0.5000140356762293,
               "per_class_ap": {
-                "pedestrian": 0.0,
-                "rider": 0.0,
-                "car": 0.0,
-                "truck": 0.0,
-                "bus": 0.0,
-                "train": 0.0,
-                "motorcycle": 0.0,
-                "bicycle": 0.0,
-                "traffic light": 0.0,
-                "traffic sign": 0.0
+                "pedestrian": 0.3265824098967793,
+                "rider": 0.23148613496049844,
+                "car": 0.4569909569912699,
+                "truck": 0.3896858277878987,
+                "bus": 0.406539549943339,
+                "train": 0.061509900990098995,
+                "motorcycle": 0.21986456438657206,
+                "bicycle": 0.22249727613022807,
+                "traffic light": 0.23547191004946602,
+                "traffic sign": 0.35143197861795517
               }
             },
             "fp32-onnx": {
-              "map": 0.0,
-              "map50": 0.0,
+              "map": 0.29047384223184836,
+              "map50": 0.5002577333597636,
               "per_class_ap": {
-                "pedestrian": 0.0,
-                "rider": 0.0,
-                "car": 0.0,
-                "truck": 0.0,
-                "bus": 0.0,
-                "train": 0.0,
-                "motorcycle": 0.0,
-                "bicycle": 0.0,
-                "traffic light": 0.0,
-                "traffic sign": 0.0
+                "pedestrian": 0.32641712885343416,
+                "rider": 0.22976842571943995,
+                "car": 0.45692986187373996,
+                "truck": 0.3912240921307031,
+                "bus": 0.4069894519942967,
+                "train": 0.061509900990098995,
+                "motorcycle": 0.22213871876095995,
+                "bicycle": 0.2232449573659648,
+                "traffic light": 0.23546194605689583,
+                "traffic sign": 0.35105393857295036
               }
             },
             "int8-onnx": {
-              "map": 0.045,
-              "map50": 0.05,
+              "map": 0.288405581441644,
+              "map50": 0.4996702358020484,
               "per_class_ap": {
-                "pedestrian": 0.0,
-                "rider": 0.0,
-                "car": 0.0,
-                "truck": 0.0,
-                "bus": 0.0,
-                "train": 0.0,
-                "motorcycle": 0.0,
-                "bicycle": 0.0,
-                "traffic light": 0.0,
-                "traffic sign": 0.45
+                "pedestrian": 0.32462376674278354,
+                "rider": 0.22040897107485072,
+                "car": 0.44797948015420064,
+                "truck": 0.3912314940345145,
+                "bus": 0.3996004201779638,
+                "train": 0.07450495049504949,
+                "motorcycle": 0.21305673993328664,
+                "bicycle": 0.22550832850631752,
+                "traffic light": 0.23023529920000319,
+                "traffic sign": 0.35690636409747034
               }
             }
           },
-          "git_sha": "a4c2d4dbbde0ab2bfa7f4d5680904f75f81e94d1",
-          "created": "2026-07-25T11:47:16.905057+00:00"
+          "git_sha": "28f740432aaf45e91bf8f81de50a756a59565a16",
+          "created": "2026-09-28T11:23:36.354641+00:00"
         },
         "latency": {
           "hardware": {
@@ -113,47 +189,52 @@
             "thread_count": 10,
             "batch_size": 1,
             "image_size": [
-              360,
-              640
-            ]
+              720,
+              1280
+            ],
+            "execution_target": {
+              "fp32-pt": "cpu",
+              "fp32-onnx": "CPUExecutionProvider",
+              "int8-onnx": "CPUExecutionProvider"
+            }
           },
           "variants": {
             "fp32-pt": {
               "variant": "fp32-pt",
-              "p50": 1.658165209024446,
-              "p95": 2.635825000004843,
-              "p99": 3.128110124991508,
-              "fps": 0.5566087666080478,
-              "peak_rss_bytes": 5026185216,
+              "p50": 2.447936667012982,
+              "p95": 2.8316837499151006,
+              "p99": 3.0656376669649035,
+              "fps": 0.4099868730785794,
+              "peak_rss_bytes_process_wide": 6079873024,
               "warmup_iters": 50,
               "timed_iters": 200,
               "interleaved": true
             },
             "fp32-onnx": {
               "variant": "fp32-onnx",
-              "p50": 3.2440236669790465,
-              "p95": 4.831831584015163,
-              "p99": 5.400490999978501,
-              "fps": 0.2841240715758573,
-              "peak_rss_bytes": 5026185216,
+              "p50": 3.0205073748948053,
+              "p95": 3.5550750420661643,
+              "p99": 4.415016583981924,
+              "fps": 0.3247252307087221,
+              "peak_rss_bytes_process_wide": 6079873024,
               "warmup_iters": 50,
               "timed_iters": 200,
               "interleaved": true
             },
             "int8-onnx": {
               "variant": "int8-onnx",
-              "p50": 3.1417780829942785,
-              "p95": 4.192950916010886,
-              "p99": 4.9672587089880835,
-              "fps": 0.2972618075859075,
-              "peak_rss_bytes": 5026185216,
+              "p50": 3.0366955409990624,
+              "p95": 3.4995347920339555,
+              "p99": 3.747092291014269,
+              "fps": 0.3236798206353256,
+              "peak_rss_bytes_process_wide": 6079873024,
               "warmup_iters": 50,
               "timed_iters": 200,
               "interleaved": true
             }
           },
-          "git_sha": "a4c2d4dbbde0ab2bfa7f4d5680904f75f81e94d1",
-          "created": "2026-07-25T11:45:52.090276+00:00"
+          "git_sha": "5c7e8b11e4ef30dcfb0d5e39be5d444c689ffa37",
+          "created": "2026-09-24T22:49:39.575486+00:00"
         }
       }
     },
@@ -163,22 +244,22 @@
       "spec": "08-vqa",
       "blocker": "spec 08 cluster evaluation run (`sbatch scripts/slurm/vqa_eval.slurm`), which itself needs spec 06's real DriveLM conversion and spec 07's LoRA adapter",
       "reason": "last run was on tests/fixtures/ \u2014 not a result (H7)",
-      "source": "runs/08-vqa/20260726-204745/comparison.json",
-      "sha256": "3cc1c53e0ef78f91b1447fcefaadd82fddc87501952904929bfffe3135865799",
-      "created": "2026-07-26T15:17:46.668589+00:00",
+      "source": "runs/08-vqa/20260929-031240/comparison.json",
+      "sha256": "2aea6fa69e60ce05e08bdab125c319780bf0b74e187309c8ea2292791a38f287",
+      "created": "2026-09-28T21:42:41.795775+00:00",
       "sources": {
         "comparison": {
-          "path": "runs/08-vqa/20260726-204745/comparison.json",
-          "sha256": "3cc1c53e0ef78f91b1447fcefaadd82fddc87501952904929bfffe3135865799"
+          "path": "runs/08-vqa/20260929-031240/comparison.json",
+          "sha256": "2aea6fa69e60ce05e08bdab125c319780bf0b74e187309c8ea2292791a38f287"
         },
         "metrics": {
-          "path": "runs/08-vqa/20260726-204745/metrics.json",
-          "sha256": "a02578bbd3e68b78d72eed021af06da5fbc7573e6d7754ed099331762dd53322"
+          "path": "runs/08-vqa/20260929-031240/metrics.json",
+          "sha256": "6460d434e7b5a48e2241834aff312492f11e3a6af9232bad3b4e4b0fe3c45784"
         }
       },
       "data": {
         "comparison": {
-          "val_jsonl_sha256": "1cc41c8cd2e65b256bb51394f4fa3c6ef445f5650f8d4384a75b594fc7917783",
+          "val_jsonl_sha256": "d7f88b90d8eee6c74d3c1792fb9dc67647cfef767046d2f749b884f66e11e557",
           "num_items": 8,
           "generation": {
             "max_new_tokens": 128,
@@ -188,8 +269,8 @@
           "scorer_sha256": "9ae51084bdbbf9e50e574e242ce68af12df21a332cd6d54de5e846caec34cc58",
           "final_score_composition": "final_score = 0.4 * (chatgpt / 100) + 0.2 * (Bleu_1/4/3 + Bleu_2/4/3 + Bleu_3/4/3 + Bleu_4/4/3 + ROUGE_L/3 + CIDEr/10/3) + 0.2 * (match / 100) + 0.2 * accuracy [weights: chatgpt=0.4, language=0.2, match=0.2, accuracy=0.2] (third_party/drivelm/evaluation.py __main__ block, commit 266b570f1c746a4cad7f8f0317eb3c2f99141512)",
           "final_score": null,
-          "base_created": "2026-07-26T15:17:46.293072+00:00",
-          "finetuned_created": "2026-07-26T15:17:46.668589+00:00",
+          "base_created": "2026-09-28T21:42:41.373588+00:00",
+          "finetuned_created": "2026-09-28T21:42:41.795775+00:00",
           "overall_accuracy": {
             "before": 0.5,
             "after": 1.0,
@@ -312,8 +393,8 @@
                 },
                 "final_score": null
               },
-              "git_sha": "497eeec59b60aa3a9ba45a20018e2634362dbfa7",
-              "created": "2026-07-26T15:17:46.293072+00:00"
+              "git_sha": "28f740432aaf45e91bf8f81de50a756a59565a16",
+              "created": "2026-09-28T21:42:41.373588+00:00"
             },
             "finetuned": {
               "model_role": "finetuned",
@@ -406,8 +487,8 @@
                 },
                 "final_score": null
               },
-              "git_sha": "497eeec59b60aa3a9ba45a20018e2634362dbfa7",
-              "created": "2026-07-26T15:17:46.668589+00:00"
+              "git_sha": "28f740432aaf45e91bf8f81de50a756a59565a16",
+              "created": "2026-09-28T21:42:41.795775+00:00"
             }
           }
         }
