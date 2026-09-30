@@ -172,6 +172,8 @@ class VLMTrainer:
         self.optimizer.load_state_dict(state["optimizer"])
         if self.scheduler is not None and state["scheduler"] is not None:
             self.scheduler.load_state_dict(state["scheduler"])
-        torch.set_rng_state(state["rng_state"])
+        # `map_location` above moved this CPU ByteTensor onto the GPU; set_rng_state only accepts a
+        # CPU one (resume crashed on CUDA after 3 min, job 421721, `progress_report.md` [SEQ-0168]).
+        torch.set_rng_state(state["rng_state"].cpu())
         self.step = state["step"]
         self._micro_step = state["micro_step"]
