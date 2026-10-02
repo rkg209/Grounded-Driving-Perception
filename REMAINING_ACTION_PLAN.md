@@ -380,6 +380,14 @@ official nuScenes 700/150 scene lists. That sentence must appear beside every St
 
 ## Action 6 — Author the 150–300 grounding phrases, freeze, and evaluate
 
+> **🔶 PARTIAL 2026-10-02** — see `progress_report.md` [SEQ-0171]/[SEQ-0172]. Frames sampled
+> 2026-09-28; **237 phrases drafted by Claude from ground truth (not hand-authored — Rahul's
+> decision, recorded in `construction.md`), reviewed by Rahul with 0 edits, frozen** (sha256
+> f1be9ade75e6...). Remaining: commit + pull on Rudra, then the user submits
+> `grounding_eval.slurm` (ZEROSHOT_METRICS=`runs/02-zeroshot/20260923-004055/metrics.json`,
+> FINETUNED_CHECKPOINT=`runs/03-finetune/20260923-032728/checkpoint-209592`). Say "drafted by an LLM,
+> human-reviewed, self-built" wherever this set appears. The notes below are the original plan.
+
 **Action.** The one blocker in this repo that its own tooling explicitly cannot discharge. In order:
 1. `uv run gdp ground sample-frames --dataset bdd100k --n 60 --seed 42` — writes `frames.json` with a
    `sampled_at` timestamp **before** you have seen any model prediction. This ordering is the bias

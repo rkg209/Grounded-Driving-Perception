@@ -1,0 +1,13 @@
+{
+  "sha256": "f1be9ade75e6db388d5e86f6236042dff0fa1c833b09d278981c359724af9a18",
+  "num_phrases": 237,
+  "per_type_counts": {
+    "spatial": 37,
+    "attribute": 107,
+    "relational": 22,
+    "negative": 71
+  },
+  "frozen_at": "2026-10-02T08:53:30.796297+00:00",
+  "git_sha": "4d60bc0d2b0af368f6012aab6f7de1ca8b29080b",
+  "author": "claude-draft, rahul-reviewed"
+}

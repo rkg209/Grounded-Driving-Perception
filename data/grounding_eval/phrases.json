@@ -1,0 +1,1901 @@
+{
+  "is_synthetic": false,
+  "phrases": [
+    {
+      "image_id": 106,
+      "phrase": "the white suv",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 1877
+    },
+    {
+      "image_id": 106,
+      "phrase": "the rider on the motorcycle",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 1878
+    },
+    {
+      "image_id": 106,
+      "phrase": "the leftmost truck",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 1857
+    },
+    {
+      "image_id": 106,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 409,
+      "phrase": "the black suv",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 7455
+    },
+    {
+      "image_id": 409,
+      "phrase": "the pedestrian standing next to the black suv",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 7456
+    },
+    {
+      "image_id": 409,
+      "phrase": "the car at the far right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 7454
+    },
+    {
+      "image_id": 409,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 434,
+      "phrase": "the large white bus",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 7950
+    },
+    {
+      "image_id": 434,
+      "phrase": "the truck with the postal logo",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 7960
+    },
+    {
+      "image_id": 434,
+      "phrase": "the car between the truck and the bus",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 7948
+    },
+    {
+      "image_id": 434,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 488,
+      "phrase": "the black suv on the right side of the street",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 9114
+    },
+    {
+      "image_id": 488,
+      "phrase": "the pedestrian in the light dress",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 9119
+    },
+    {
+      "image_id": 488,
+      "phrase": "the pedestrian on the left sidewalk",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 9118
+    },
+    {
+      "image_id": 488,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 520,
+      "phrase": "the motorcycle behind the white railing",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 9694
+    },
+    {
+      "image_id": 520,
+      "phrase": "the blue and yellow parking sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 9695
+    },
+    {
+      "image_id": 520,
+      "phrase": "the silver car closest to the camera on the right",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 9693
+    },
+    {
+      "image_id": 520,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 711,
+      "phrase": "the white bus at the left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 13054
+    },
+    {
+      "image_id": 711,
+      "phrase": "the bus to the right of the large school bus",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 13067
+    },
+    {
+      "image_id": 711,
+      "phrase": "the large yellow school bus",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 13065
+    },
+    {
+      "image_id": 711,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    },
+    {
+      "image_id": 750,
+      "phrase": "the white van in the lane ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 13671
+    },
+    {
+      "image_id": 750,
+      "phrase": "the silver sedan on the right side of the road",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 13674
+    },
+    {
+      "image_id": 750,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 1139,
+      "phrase": "the large white bus on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 21179
+    },
+    {
+      "image_id": 1139,
+      "phrase": "the white car to the right of the black suv",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 21177
+    },
+    {
+      "image_id": 1139,
+      "phrase": "the pedestrian in the grey jacket",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 21169
+    },
+    {
+      "image_id": 1139,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 1291,
+      "phrase": "the yellow taxi",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 23926
+    },
+    {
+      "image_id": 1291,
+      "phrase": "the white bus behind the yellow taxi",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 23925
+    },
+    {
+      "image_id": 1291,
+      "phrase": "the black sedan at the right edge of the street",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 23939
+    },
+    {
+      "image_id": 1291,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    },
+    {
+      "image_id": 1307,
+      "phrase": "the dark grey suv on the left side of the street",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 24180
+    },
+    {
+      "image_id": 1307,
+      "phrase": "the red van in the middle of the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 24186
+    },
+    {
+      "image_id": 1307,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 1424,
+      "phrase": "the large black suv parked on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 26448
+    },
+    {
+      "image_id": 1424,
+      "phrase": "the car at the far left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 26449
+    },
+    {
+      "image_id": 1424,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 1519,
+      "phrase": "the white car in the left lane",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 28150
+    },
+    {
+      "image_id": 1519,
+      "phrase": "the bus in the distance to the right of the white car",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 28151
+    },
+    {
+      "image_id": 1519,
+      "phrase": "the green road sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 28156
+    },
+    {
+      "image_id": 1519,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 1535,
+      "phrase": "the large silver sedan parked on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 28474
+    },
+    {
+      "image_id": 1535,
+      "phrase": "the dark grey car at the right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 28475
+    },
+    {
+      "image_id": 1535,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 1584,
+      "phrase": "the car at the far left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 29447
+    },
+    {
+      "image_id": 1584,
+      "phrase": "the dark car in the right lane",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 29451
+    },
+    {
+      "image_id": 1584,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 1674,
+      "phrase": "the white van",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 31038
+    },
+    {
+      "image_id": 1674,
+      "phrase": "the car to the right of the white van",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 31039
+    },
+    {
+      "image_id": 1674,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 1679,
+      "phrase": "the yellow warning sign below the speed limit sign",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 31113
+    },
+    {
+      "image_id": 1679,
+      "phrase": "the speed limit sign on the right",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 31112
+    },
+    {
+      "image_id": 1679,
+      "phrase": "the car",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "car"
+    },
+    {
+      "image_id": 1824,
+      "phrase": "the white car on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 33830
+    },
+    {
+      "image_id": 1824,
+      "phrase": "the silver car at the right edge of the frame",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 33833
+    },
+    {
+      "image_id": 1824,
+      "phrase": "the white van to the left of the dark suv",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 33832
+    },
+    {
+      "image_id": 1824,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 2045,
+      "phrase": "the large white box truck next to the grey sedan",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 37902
+    },
+    {
+      "image_id": 2045,
+      "phrase": "the white truck on the left side of the street",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 37892
+    },
+    {
+      "image_id": 2045,
+      "phrase": "the yellow pedestrian crossing sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 37882
+    },
+    {
+      "image_id": 2045,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 2286,
+      "phrase": "the dark red suv directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 42631
+    },
+    {
+      "image_id": 2286,
+      "phrase": "the taxi with the lit roof sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 42628
+    },
+    {
+      "image_id": 2286,
+      "phrase": "the green street name sign at the top right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 42615
+    },
+    {
+      "image_id": 2286,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 2547,
+      "phrase": "the white suv directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 47676
+    },
+    {
+      "image_id": 2547,
+      "phrase": "the white suv at the bottom right corner",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 47673
+    },
+    {
+      "image_id": 2547,
+      "phrase": "the white shuttle van on the left edge",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 47681
+    },
+    {
+      "image_id": 2547,
+      "phrase": "the bicycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bicycle"
+    },
+    {
+      "image_id": 2615,
+      "phrase": "the white sedan ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 48885
+    },
+    {
+      "image_id": 2615,
+      "phrase": "the pedestrian at the right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 48875
+    },
+    {
+      "image_id": 2615,
+      "phrase": "the black car on the right next to the pedestrian",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 48883
+    },
+    {
+      "image_id": 2615,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    },
+    {
+      "image_id": 3150,
+      "phrase": "the yellow taxi directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 58645
+    },
+    {
+      "image_id": 3150,
+      "phrase": "the yellow taxi on the right side of the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 58646
+    },
+    {
+      "image_id": 3150,
+      "phrase": "the emergency vehicle with flashing lights",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 58643
+    },
+    {
+      "image_id": 3150,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 3257,
+      "phrase": "the red car in the left lane",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 60761
+    },
+    {
+      "image_id": 3257,
+      "phrase": "the black car on the right side of the road",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 60760
+    },
+    {
+      "image_id": 3257,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 3527,
+      "phrase": "the white sedan parked along the left curb",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 65838
+    },
+    {
+      "image_id": 3527,
+      "phrase": "the black sedan at the far right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 65843
+    },
+    {
+      "image_id": 3527,
+      "phrase": "the car at the far left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 65839
+    },
+    {
+      "image_id": 3527,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    },
+    {
+      "image_id": 3582,
+      "phrase": "the dark suv on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 66814
+    },
+    {
+      "image_id": 3582,
+      "phrase": "the grey sedan on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 66815
+    },
+    {
+      "image_id": 3582,
+      "phrase": "the rightmost green overhead highway sign",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 66829
+    },
+    {
+      "image_id": 3582,
+      "phrase": "the leftmost green overhead highway sign",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 66831
+    },
+    {
+      "image_id": 3582,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 3611,
+      "phrase": "the box truck covered in graffiti",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 67354
+    },
+    {
+      "image_id": 3611,
+      "phrase": "the white car on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 67353
+    },
+    {
+      "image_id": 3611,
+      "phrase": "the green truck at the right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 67355
+    },
+    {
+      "image_id": 3611,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 3657,
+      "phrase": "the large white van on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 68224
+    },
+    {
+      "image_id": 3657,
+      "phrase": "the nearest parked dark suv",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 68221
+    },
+    {
+      "image_id": 3657,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 3733,
+      "phrase": "the white flatbed truck",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 69765
+    },
+    {
+      "image_id": 3733,
+      "phrase": "the red sedan on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 69760
+    },
+    {
+      "image_id": 3733,
+      "phrase": "the silver car at the left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 69761
+    },
+    {
+      "image_id": 3733,
+      "phrase": "the tan suv facing the camera in the middle of the road",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 69763
+    },
+    {
+      "image_id": 3733,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 3811,
+      "phrase": "the maroon suv on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 71312
+    },
+    {
+      "image_id": 3811,
+      "phrase": "the silver suv on the left side of the intersection",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 71309
+    },
+    {
+      "image_id": 3811,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 3814,
+      "phrase": "the woman in the denim jacket crossing the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 71348
+    },
+    {
+      "image_id": 3814,
+      "phrase": "the woman in black carrying a red bag",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 71351
+    },
+    {
+      "image_id": 3814,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 4012,
+      "phrase": "the dark truck at the left edge of the frame",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 75165
+    },
+    {
+      "image_id": 4012,
+      "phrase": "the white van in the middle of the highway",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 75156
+    },
+    {
+      "image_id": 4012,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 4333,
+      "phrase": "the overhead sign with a down arrow",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 81562
+    },
+    {
+      "image_id": 4333,
+      "phrase": "the large dark car at the bottom right",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 81563
+    },
+    {
+      "image_id": 4333,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 4506,
+      "phrase": "the large black semi truck crossing the intersection",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 84755
+    },
+    {
+      "image_id": 4506,
+      "phrase": "the black sedan at the left edge of the frame",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 84754
+    },
+    {
+      "image_id": 4506,
+      "phrase": "the black van in the middle of the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 84757
+    },
+    {
+      "image_id": 4506,
+      "phrase": "the rider on the bicycle",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 84768
+    },
+    {
+      "image_id": 4506,
+      "phrase": "the bicycle at the right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 84769
+    },
+    {
+      "image_id": 4506,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 4552,
+      "phrase": "the brown event parking sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 85445
+    },
+    {
+      "image_id": 4552,
+      "phrase": "the car",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "car"
+    },
+    {
+      "image_id": 4552,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 4557,
+      "phrase": "the pedestrian in the foreground carrying a water bottle",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 85534
+    },
+    {
+      "image_id": 4557,
+      "phrase": "the white box truck on the left side of the road",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 85545
+    },
+    {
+      "image_id": 4557,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 4741,
+      "phrase": "the yellow taxi on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 88675
+    },
+    {
+      "image_id": 4741,
+      "phrase": "the black sedan directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 88674
+    },
+    {
+      "image_id": 4741,
+      "phrase": "the yellow taxi at the left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 88677
+    },
+    {
+      "image_id": 4741,
+      "phrase": "the white truck in the distance behind the crosswalk",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 88655
+    },
+    {
+      "image_id": 4741,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 4803,
+      "phrase": "the white cargo van on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 89966
+    },
+    {
+      "image_id": 4803,
+      "phrase": "the silver suv on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 89965
+    },
+    {
+      "image_id": 4803,
+      "phrase": "the white car at the right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 89967
+    },
+    {
+      "image_id": 4803,
+      "phrase": "the beige car in the middle of the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 89964
+    },
+    {
+      "image_id": 4803,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 5514,
+      "phrase": "the large grey truck with the green logo",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 102906
+    },
+    {
+      "image_id": 5514,
+      "phrase": "the blue hatchback",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 102905
+    },
+    {
+      "image_id": 5514,
+      "phrase": "the white van on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 102907
+    },
+    {
+      "image_id": 5514,
+      "phrase": "the white box truck behind the blue hatchback",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 102903
+    },
+    {
+      "image_id": 5514,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 5574,
+      "phrase": "the silver sedan parked on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 104096
+    },
+    {
+      "image_id": 5574,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 5574,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    },
+    {
+      "image_id": 5635,
+      "phrase": "the white shuttle bus with a yellow stripe parked beside the building",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 105282
+    },
+    {
+      "image_id": 5635,
+      "phrase": "the dark sedan driving ahead in the left lane",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 105285
+    },
+    {
+      "image_id": 5635,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 5881,
+      "phrase": "the white suv on the left behind the concrete barrier",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 109821
+    },
+    {
+      "image_id": 5881,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 5881,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    },
+    {
+      "image_id": 5925,
+      "phrase": "the white suv under the overpass",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 110745
+    },
+    {
+      "image_id": 5925,
+      "phrase": "the car at the far right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 110746
+    },
+    {
+      "image_id": 5925,
+      "phrase": "the teal street name sign at the top left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 110744
+    },
+    {
+      "image_id": 5925,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 6201,
+      "phrase": "the large grey suv on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 115657
+    },
+    {
+      "image_id": 6201,
+      "phrase": "the white hatchback on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 115646
+    },
+    {
+      "image_id": 6201,
+      "phrase": "the gold car to the right of the white hatchback",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 115645
+    },
+    {
+      "image_id": 6201,
+      "phrase": "the silver sedan parked in front of the grey suv",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 115655
+    },
+    {
+      "image_id": 6201,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 6224,
+      "phrase": "the white truck at the left edge of the frame closest to the camera",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 116010
+    },
+    {
+      "image_id": 6224,
+      "phrase": "the blue flatbed truck",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 116008
+    },
+    {
+      "image_id": 6224,
+      "phrase": "the yellow taxi",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 116007
+    },
+    {
+      "image_id": 6224,
+      "phrase": "the yellow school crossing sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 116017
+    },
+    {
+      "image_id": 6224,
+      "phrase": "the pedestrian in the yellow shirt on the sidewalk",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 116015
+    },
+    {
+      "image_id": 6224,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 6873,
+      "phrase": "the silver minivan directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 127692
+    },
+    {
+      "image_id": 6873,
+      "phrase": "the white utility vehicle on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 127682
+    },
+    {
+      "image_id": 6873,
+      "phrase": "the dark sedan parked in front of the white fence",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 127694
+    },
+    {
+      "image_id": 6873,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 6912,
+      "phrase": "the black minivan on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 128415
+    },
+    {
+      "image_id": 6912,
+      "phrase": "the grey jeep directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 128417
+    },
+    {
+      "image_id": 6912,
+      "phrase": "the yellow taxi at the left edge of the frame",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 128414
+    },
+    {
+      "image_id": 6912,
+      "phrase": "the man in the grey shirt crossing the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 128418
+    },
+    {
+      "image_id": 6912,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 6924,
+      "phrase": "the silver car at the right edge of the frame",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 128651
+    },
+    {
+      "image_id": 6924,
+      "phrase": "the white truck on the left side of the road",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 128652
+    },
+    {
+      "image_id": 6924,
+      "phrase": "the white sedan on the right side of the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 128648
+    },
+    {
+      "image_id": 6924,
+      "phrase": "the motorcycle",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "motorcycle"
+    },
+    {
+      "image_id": 7359,
+      "phrase": "the tan sedan directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 136660
+    },
+    {
+      "image_id": 7359,
+      "phrase": "the white car to the right of the tan sedan",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 136659
+    },
+    {
+      "image_id": 7359,
+      "phrase": "the white truck in the tunnel entrance",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 136661
+    },
+    {
+      "image_id": 7359,
+      "phrase": "the orange road work sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 136655
+    },
+    {
+      "image_id": 7359,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 7527,
+      "phrase": "the white sedan on the right side of the street",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 139990
+    },
+    {
+      "image_id": 7527,
+      "phrase": "the car at the far left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 139976
+    },
+    {
+      "image_id": 7527,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 7527,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 8279,
+      "phrase": "the dark car at the left edge of the frame",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 154062
+    },
+    {
+      "image_id": 8279,
+      "phrase": "the silver sedan directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 154064
+    },
+    {
+      "image_id": 8279,
+      "phrase": "the red car in the left lane",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 154063
+    },
+    {
+      "image_id": 8279,
+      "phrase": "the white car to the left of the silver sedan",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 154065
+    },
+    {
+      "image_id": 8279,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 8785,
+      "phrase": "the black sedan on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 163197
+    },
+    {
+      "image_id": 8785,
+      "phrase": "the gold sedan directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 163195
+    },
+    {
+      "image_id": 8785,
+      "phrase": "the white sedan on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 163194
+    },
+    {
+      "image_id": 8785,
+      "phrase": "the white van in the distance on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 163199
+    },
+    {
+      "image_id": 8785,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 8928,
+      "phrase": "the grey suv on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 165826
+    },
+    {
+      "image_id": 8928,
+      "phrase": "the white suv parked on the left",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 165819
+    },
+    {
+      "image_id": 8928,
+      "phrase": "the dark sedan driving ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 165825
+    },
+    {
+      "image_id": 8928,
+      "phrase": "the motorcycle parked behind the white suv",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 165833
+    },
+    {
+      "image_id": 8928,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 8935,
+      "phrase": "the white van directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 165960
+    },
+    {
+      "image_id": 8935,
+      "phrase": "the dark sedan on the right side of the intersection",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 165968
+    },
+    {
+      "image_id": 8935,
+      "phrase": "the silver car on the left side of the intersection",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 165949
+    },
+    {
+      "image_id": 8935,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 9044,
+      "phrase": "the car at the left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 167922
+    },
+    {
+      "image_id": 9044,
+      "phrase": "the car at the right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 167926
+    },
+    {
+      "image_id": 9044,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 9044,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 9195,
+      "phrase": "the dark sedan directly ahead with red tail lights",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 170713
+    },
+    {
+      "image_id": 9195,
+      "phrase": "the green highway sign",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 170707
+    },
+    {
+      "image_id": 9195,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 9195,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    },
+    {
+      "image_id": 9459,
+      "phrase": "the silver station wagon on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 175415
+    },
+    {
+      "image_id": 9459,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 9459,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 9654,
+      "phrase": "the police suv at the bottom right corner",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 179164
+    },
+    {
+      "image_id": 9654,
+      "phrase": "the car at the far left edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 179175
+    },
+    {
+      "image_id": 9654,
+      "phrase": "the yellow arrow sign on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 179142
+    },
+    {
+      "image_id": 9654,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 9654,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 9674,
+      "phrase": "the white sedan at the left edge of the frame",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 179554
+    },
+    {
+      "image_id": 9674,
+      "phrase": "the dark car at the right edge of the frame",
+      "qualifier_type": "spatial",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 179558
+    },
+    {
+      "image_id": 9674,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 9674,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 9863,
+      "phrase": "the white sedan directly ahead with its brake lights on",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 183175
+    },
+    {
+      "image_id": 9863,
+      "phrase": "the large dark red car parked on the right",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 183174
+    },
+    {
+      "image_id": 9863,
+      "phrase": "the dark car between the white sedan and the red car",
+      "qualifier_type": "relational",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 183178
+    },
+    {
+      "image_id": 9863,
+      "phrase": "the pedestrian",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "pedestrian"
+    },
+    {
+      "image_id": 9863,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 9891,
+      "phrase": "the black sedan directly ahead",
+      "qualifier_type": "attribute",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "target_ann_id": 183846
+    },
+    {
+      "image_id": 9891,
+      "phrase": "the bus",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "bus"
+    },
+    {
+      "image_id": 9891,
+      "phrase": "the truck",
+      "qualifier_type": "negative",
+      "author": "claude-draft",
+      "date": "2026-10-02",
+      "absent_class": "truck"
+    }
+  ]
+}

@@ -14,11 +14,21 @@ in `gdp.ground.phrases` and `gdp.ground.sample` — not a substitute for them.
 
 ## Who, when
 
-- **Author:** Rahul (IIT Bombay), sole author of every phrase in `phrases.json`.
-- **Date range:** _TODO — fill in when the real 150-300-phrase set is authored (post-BDD100K
-  download). This template ships with spec 04's laptop-side implementation
-  (`.claude/plans/04-grounding-eval-set.md` task 9); the real authoring pass is explicitly out of
-  scope for that plan ("Not in this plan (manual, post-BDD)")._
+- **Author:** every phrase was **drafted by Claude** (Sonnet 5.5, a Claude Code session) and
+  **reviewed by Rahul** (IIT Bombay). *This replaces the original "Rahul, sole author" plan,
+  changed on 2026-10-02 by Rahul's decision to save time.* What the drafter saw: BDD100K
+  ground-truth boxes (`authoring_sheet.md`, the full val annotations) and the overlay images of the
+  60 pre-sampled frames. What it did **not** see: any detector's prediction, zero-shot or
+  fine-tuned. The per-phrase `author` field records provenance: `claude-draft` = reviewed and left
+  unchanged; `rahul-edited` = text or target changed by Rahul during review. Phrases Rahul
+  removed are listed in `drops.json` with a reason. Anything citing this set must say
+  "drafted by an LLM from ground truth, human-reviewed", never "hand-authored".
+- **Date range:** drafted 2026-10-02 (Claude, one session); reviewed by Rahul and frozen
+  2026-10-02. Frames were sampled 2026-09-28T22:20:01Z (seed 42), before any phrase existed.
+- **Review outcome (as reported by Rahul, 2026-10-02):** all 237 phrases reviewed; none edited,
+  none removed. The file was byte-identical to the drafted version at review time (mtime unchanged
+  since the build), so every phrase still carries `author: claude-draft`. This is a review
+  statement, not a mechanical guarantee that each phrase matches exactly one box.
 - **Frame source:** BDD100K val split (`configs/bdd100k.yaml`), sampled via
   `gdp ground sample-frames --dataset bdd100k --n <grounding.num_frames> --seed <cfg.seed>`.
 
@@ -62,18 +72,28 @@ qualifier already in the phrase text.
 
 ## Drop count and reasons
 
-_TODO — fill in from `data/grounding_eval/drops.json` once the real phrase set is authored._ Every
-drop must be recorded there as `{phrase, image_id, reason, date}`, and the count and rate must land
-in the eventual `metrics.json`/write-up (H7: the drops are a file, not a memory). Until then:
+Every drop is recorded in `data/grounding_eval/drops.json` as `{phrase, image_id, reason, date}`
+(gitignored with the rest of the directory; the counts below are the committed record), and the
+count and rate must land in the eventual `metrics.json`/write-up (H7).
 
 | Reason | Count |
 |---|---|
-| ambiguous (near-duplicate same-class GT box) | _TODO_ |
-| could not be made unique even after rewriting | _TODO_ |
-| other (state explicitly) | _TODO_ |
-| **Total dropped** | _TODO_ |
-| **Total authored (kept + dropped)** | _TODO_ |
-| **Drop rate** | _TODO_ |
+| ambiguous (near-duplicate same-class GT box) | 0 |
+| could not be made unique even after rewriting | 0 |
+| other (state explicitly) | 0 |
+| **Total dropped** | 0 |
+| **Total authored (kept + dropped)** | 237 |
+| **Drop rate** | 0 / 237 = 0.0% |
+
+**Why 0.0% understates the real selection pressure (read this before quoting it):** the table counts
+only phrases that were *written and then removed*. While drafting, the drafter silently declined to
+write candidates it judged not uniquely describable and never logged them: pedestrians inside
+crowds, groups of near-identical parked or distant cars, two same-type trucks in one frame, and
+targets too small or dark to point at. That count is unknown and was not recorded. The set
+therefore over-represents objects that are easy to single out in words, and a grounding accuracy on
+it should not be read as accuracy on crowded or ambiguous scenes. `validate_phrases` found 0
+near-duplicate same-class warnings (IoU>=0.5), which is a narrower check than "exactly one box
+satisfies the phrase".
 
 ## Held-out discipline (acceptance criterion 5)
 
