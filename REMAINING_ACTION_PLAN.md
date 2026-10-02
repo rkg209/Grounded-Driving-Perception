@@ -427,6 +427,13 @@ reasoning is the strongest interview material in the project.
 
 ## Action 7 — Run the DriveLM chain: specs 06 → 07 → 08
 
+> **✅ DONE 2026-10-02 (commentary pending)** — see `progress_report.md` [SEQ-0165]–[SEQ-0170].
+> Fine-tune job 421767 (25% scene subsample, 1 epoch) and eval job 423378 ran; results in spec 08.
+> Headline: base 0.000 (answer-format artifact) -> fine-tuned 0.773 overall, but perception 0.926 =
+> the majority-answer rate and prediction 0.992 vs 0.978; **behavior 0.417 vs 0.261 is the only
+> informative category**. Still to do by hand: the `failures.md` commentary. Notes below kept as
+> written.
+
 **Action.** In strict order:
 1. Spec 06's conversion (part of Action 5).
 2. Submit `scripts/slurm/finetune_vlm.slurm` — LoRA fine-tune real `Qwen/Qwen2.5-VL-3B-Instruct`.

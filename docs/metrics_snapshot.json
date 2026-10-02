@@ -1,7 +1,7 @@
 {
   "snapshot_version": 1,
-  "created": "2026-09-28T22:03:36.854235+00:00",
-  "git_sha": "28f740432aaf45e91bf8f81de50a756a59565a16",
+  "created": "2026-10-02T00:27:14.491621+00:00",
+  "git_sha": "f86e0df384f1a90bddd7a5550f2db0e11b289ff1",
   "stages": {
     "stage1_detection": {
       "status": "present",
@@ -239,28 +239,28 @@
       }
     },
     "stage2_vqa": {
-      "status": "synthetic",
+      "status": "present",
       "title": "Stage 2 \u00b7 DriveLM VQA",
       "spec": "08-vqa",
       "blocker": "spec 08 cluster evaluation run (`sbatch scripts/slurm/vqa_eval.slurm`), which itself needs spec 06's real DriveLM conversion and spec 07's LoRA adapter",
-      "reason": "last run was on tests/fixtures/ \u2014 not a result (H7)",
-      "source": "runs/08-vqa/20260929-031240/comparison.json",
-      "sha256": "2aea6fa69e60ce05e08bdab125c319780bf0b74e187309c8ea2292791a38f287",
-      "created": "2026-09-28T21:42:41.795775+00:00",
+      "reason": null,
+      "source": "runs/08-vqa/20261002-055700/comparison.json",
+      "sha256": "be96cc16160255bce28b13deb084a1b6883f23f163a595f9e4ac977abc7653fe",
+      "created": "2026-10-02T00:27:04.605378+00:00",
       "sources": {
         "comparison": {
-          "path": "runs/08-vqa/20260929-031240/comparison.json",
-          "sha256": "2aea6fa69e60ce05e08bdab125c319780bf0b74e187309c8ea2292791a38f287"
+          "path": "runs/08-vqa/20261002-055700/comparison.json",
+          "sha256": "be96cc16160255bce28b13deb084a1b6883f23f163a595f9e4ac977abc7653fe"
         },
         "metrics": {
-          "path": "runs/08-vqa/20260929-031240/metrics.json",
-          "sha256": "6460d434e7b5a48e2241834aff312492f11e3a6af9232bad3b4e4b0fe3c45784"
+          "path": "runs/08-vqa/20261002-055700/metrics.json",
+          "sha256": "e9a56979747f308042462a03ff3a65d3362ceb1e6e85d3eadde41f51984ac6aa"
         }
       },
       "data": {
         "comparison": {
-          "val_jsonl_sha256": "d7f88b90d8eee6c74d3c1792fb9dc67647cfef767046d2f749b884f66e11e557",
-          "num_items": 8,
+          "val_jsonl_sha256": "3344f4384ced6e4add128d87abb186ddb264af5f9fadb00abe93e336854277b5",
+          "num_items": 4284,
           "generation": {
             "max_new_tokens": 128,
             "do_sample": false,
@@ -269,33 +269,54 @@
           "scorer_sha256": "9ae51084bdbbf9e50e574e242ce68af12df21a332cd6d54de5e846caec34cc58",
           "final_score_composition": "final_score = 0.4 * (chatgpt / 100) + 0.2 * (Bleu_1/4/3 + Bleu_2/4/3 + Bleu_3/4/3 + Bleu_4/4/3 + ROUGE_L/3 + CIDEr/10/3) + 0.2 * (match / 100) + 0.2 * accuracy [weights: chatgpt=0.4, language=0.2, match=0.2, accuracy=0.2] (third_party/drivelm/evaluation.py __main__ block, commit 266b570f1c746a4cad7f8f0317eb3c2f99141512)",
           "final_score": null,
-          "base_created": "2026-09-28T21:42:41.373588+00:00",
-          "finetuned_created": "2026-09-28T21:42:41.795775+00:00",
+          "base_created": "2026-10-02T00:27:03.054429+00:00",
+          "finetuned_created": "2026-10-02T00:27:04.605378+00:00",
           "overall_accuracy": {
-            "before": 0.5,
-            "after": 1.0,
-            "delta": 0.5
+            "before": 0.0,
+            "after": 0.7731481481481481,
+            "delta": 0.7731481481481481,
+            "majority_answer_baseline": {
+              "n_items": 1728,
+              "answer": "each category's own most common answer",
+              "rate": 0.7146990740740741
+            }
           },
           "per_category_accuracy": {
             "perception": {
-              "before": null,
-              "after": null,
-              "delta": null
+              "before": 0.0,
+              "after": 0.9256505576208178,
+              "delta": 0.9256505576208178,
+              "majority_answer_baseline": {
+                "n_items": 538,
+                "answer": "Going ahead.",
+                "rate": 0.9256505576208178
+              }
             },
             "prediction": {
-              "before": null,
-              "after": null,
-              "delta": null
+              "before": 0.0,
+              "after": 0.9915966386554622,
+              "delta": 0.9915966386554622,
+              "majority_answer_baseline": {
+                "n_items": 595,
+                "answer": "No.",
+                "rate": 0.9781512605042016
+              }
             },
             "planning": {
               "before": null,
               "after": null,
-              "delta": null
+              "delta": null,
+              "majority_answer_baseline": null
             },
             "behavior": {
-              "before": 0.5,
-              "after": 1.0,
-              "delta": 0.5
+              "before": 0.0,
+              "after": 0.41680672268907565,
+              "delta": 0.41680672268907565,
+              "majority_answer_baseline": {
+                "n_items": 595,
+                "answer": "The ego vehicle is going straight. The ego vehicle is not moving.",
+                "rate": 0.2605042016806723
+              }
             }
           },
           "regressions": []
@@ -304,48 +325,48 @@
           "models": {
             "base": {
               "model_role": "base",
-              "num_items": 8,
-              "is_synthetic": true,
-              "split_provenance": "nuscenes.utils.splits (vendored) \u2014 src/gdp/data/nuscenes_splits.json",
-              "caveat": "DriveLM-nuScenes' challenge val/test answers are withheld behind EvalAI. This split instead partitions DriveLM's answered train file by the official nuScenes v1.0-trainval scene lists (700 train / 150 val) \u2014 the canonical published nuScenes partition, applied scene-clean. It is NOT the DriveLM leaderboard split.",
+              "num_items": 4284,
+              "is_synthetic": false,
+              "split_provenance": "seeded scene-level holdout of DriveLM's answered train file \u2014 holdout.json (gdp.data.drivelm.select_holdout_scenes)",
+              "caveat": "DriveLM-nuScenes' answered file contains only nuScenes-train scenes (696/696); its official val/test answers are withheld and scored only by DriveLM's own server. This val is a seeded (seed 42) 15% scene-level holdout of the answered train file, scene-clean, evaluated on DriveLM's own extract_data.py selection with its own scorer. It is NOT the official DriveLM val/test split and NOT leaderboard-comparable.",
               "comparable_to_leaderboard": false,
               "hallucination": {
                 "caveat": "self-defined diagnostic, not part of DriveLM's official metric",
                 "overall": {
-                  "n_items": 8,
-                  "n_emitted_tags": 3,
-                  "n_ungrounded_tags": 1,
-                  "ungrounded_tag_rate": 0.3333333333333333,
-                  "items_with_hallucination": 1,
-                  "items_with_hallucination_rate": 0.125
+                  "n_items": 4284,
+                  "n_emitted_tags": 601,
+                  "n_ungrounded_tags": 601,
+                  "ungrounded_tag_rate": 1.0,
+                  "items_with_hallucination": 589,
+                  "items_with_hallucination_rate": 0.13748832866479926
                 },
                 "per_category": {
                   "perception": {
-                    "n_items": 2,
-                    "n_emitted_tags": 3,
-                    "n_ungrounded_tags": 1,
-                    "ungrounded_tag_rate": 0.3333333333333333,
-                    "items_with_hallucination": 1,
-                    "items_with_hallucination_rate": 0.5
+                    "n_items": 1133,
+                    "n_emitted_tags": 513,
+                    "n_ungrounded_tags": 513,
+                    "ungrounded_tag_rate": 1.0,
+                    "items_with_hallucination": 501,
+                    "items_with_hallucination_rate": 0.442188879082083
                   },
                   "prediction": {
-                    "n_items": 2,
-                    "n_emitted_tags": 0,
-                    "n_ungrounded_tags": 0,
-                    "ungrounded_tag_rate": null,
-                    "items_with_hallucination": 0,
-                    "items_with_hallucination_rate": 0.0
+                    "n_items": 771,
+                    "n_emitted_tags": 82,
+                    "n_ungrounded_tags": 82,
+                    "ungrounded_tag_rate": 1.0,
+                    "items_with_hallucination": 82,
+                    "items_with_hallucination_rate": 0.10635538261997406
                   },
                   "planning": {
-                    "n_items": 2,
-                    "n_emitted_tags": 0,
-                    "n_ungrounded_tags": 0,
-                    "ungrounded_tag_rate": null,
-                    "items_with_hallucination": 0,
-                    "items_with_hallucination_rate": 0.0
+                    "n_items": 1785,
+                    "n_emitted_tags": 6,
+                    "n_ungrounded_tags": 6,
+                    "ungrounded_tag_rate": 1.0,
+                    "items_with_hallucination": 6,
+                    "items_with_hallucination_rate": 0.0033613445378151263
                   },
                   "behavior": {
-                    "n_items": 2,
+                    "n_items": 595,
                     "n_emitted_tags": 0,
                     "n_ungrounded_tags": 0,
                     "ungrounded_tag_rate": null,
@@ -355,83 +376,88 @@
                 }
               },
               "overall": {
-                "n_items": 8,
+                "n_items": 4284,
                 "submetrics": {
                   "computed": [
                     {
                       "name": "accuracy",
-                      "n_items": 2,
-                      "score": 0.5
+                      "n_items": 1728,
+                      "score": 0.0
                     },
                     {
                       "name": "language",
-                      "n_items": 2,
+                      "n_items": 595,
                       "score": {
-                        "val/Bleu_1": 0.7499999999765626,
-                        "val/Bleu_2": 0.7416198486856183,
-                        "val/Bleu_3": 0.7199783208987264,
-                        "val/Bleu_4": 0.692271134721942,
-                        "val/ROUGE_L": 0.8927038626609443,
-                        "val/CIDEr": 0.0
+                        "val/Bleu_1": 0.2119428804015974,
+                        "val/Bleu_2": 0.0958280618232939,
+                        "val/Bleu_3": 0.04199648695584305,
+                        "val/Bleu_4": 0.01459209318000222,
+                        "val/ROUGE_L": 0.17264158642159388,
+                        "val/CIDEr": 0.006878550921515838
                       }
                     }
                   ],
                   "omitted": [
                     {
                       "name": "chatgpt",
-                      "n_items": 2,
+                      "n_items": 1785,
                       "reason": "requires a paid, non-deterministic OpenAI API judge; not run (H2/H9)",
                       "effect": "the official composite final_score cannot be computed"
                     },
                     {
                       "name": "match",
-                      "n_items": 2,
+                      "n_items": 176,
                       "reason": "eval_match is fused with the same paid ChatGPT judge inside the vendored scorer (eval_chatGPT called internally) and cannot be computed without it",
                       "effect": "the official composite final_score cannot be computed"
                     }
                   ]
                 },
+                "majority_answer_baseline": {
+                  "n_items": 1728,
+                  "answer": "each category's own most common answer",
+                  "rate": 0.7146990740740741
+                },
                 "final_score": null
               },
-              "git_sha": "28f740432aaf45e91bf8f81de50a756a59565a16",
-              "created": "2026-09-28T21:42:41.373588+00:00"
+              "git_sha": "f86e0df384f1a90bddd7a5550f2db0e11b289ff1",
+              "created": "2026-10-02T00:27:03.054429+00:00"
             },
             "finetuned": {
               "model_role": "finetuned",
-              "num_items": 8,
-              "is_synthetic": true,
-              "split_provenance": "nuscenes.utils.splits (vendored) \u2014 src/gdp/data/nuscenes_splits.json",
-              "caveat": "DriveLM-nuScenes' challenge val/test answers are withheld behind EvalAI. This split instead partitions DriveLM's answered train file by the official nuScenes v1.0-trainval scene lists (700 train / 150 val) \u2014 the canonical published nuScenes partition, applied scene-clean. It is NOT the DriveLM leaderboard split.",
+              "num_items": 4284,
+              "is_synthetic": false,
+              "split_provenance": "seeded scene-level holdout of DriveLM's answered train file \u2014 holdout.json (gdp.data.drivelm.select_holdout_scenes)",
+              "caveat": "DriveLM-nuScenes' answered file contains only nuScenes-train scenes (696/696); its official val/test answers are withheld and scored only by DriveLM's own server. This val is a seeded (seed 42) 15% scene-level holdout of the answered train file, scene-clean, evaluated on DriveLM's own extract_data.py selection with its own scorer. It is NOT the official DriveLM val/test split and NOT leaderboard-comparable.",
               "comparable_to_leaderboard": false,
               "hallucination": {
                 "caveat": "self-defined diagnostic, not part of DriveLM's official metric",
                 "overall": {
-                  "n_items": 8,
-                  "n_emitted_tags": 2,
-                  "n_ungrounded_tags": 0,
-                  "ungrounded_tag_rate": 0.0,
-                  "items_with_hallucination": 0,
-                  "items_with_hallucination_rate": 0.0
+                  "n_items": 4284,
+                  "n_emitted_tags": 2179,
+                  "n_ungrounded_tags": 20,
+                  "ungrounded_tag_rate": 0.009178522257916476,
+                  "items_with_hallucination": 20,
+                  "items_with_hallucination_rate": 0.004668534080298786
                 },
                 "per_category": {
                   "perception": {
-                    "n_items": 2,
-                    "n_emitted_tags": 2,
+                    "n_items": 1133,
+                    "n_emitted_tags": 1651,
                     "n_ungrounded_tags": 0,
                     "ungrounded_tag_rate": 0.0,
                     "items_with_hallucination": 0,
                     "items_with_hallucination_rate": 0.0
                   },
                   "prediction": {
-                    "n_items": 2,
-                    "n_emitted_tags": 0,
-                    "n_ungrounded_tags": 0,
-                    "ungrounded_tag_rate": null,
-                    "items_with_hallucination": 0,
-                    "items_with_hallucination_rate": 0.0
+                    "n_items": 771,
+                    "n_emitted_tags": 528,
+                    "n_ungrounded_tags": 20,
+                    "ungrounded_tag_rate": 0.03787878787878788,
+                    "items_with_hallucination": 20,
+                    "items_with_hallucination_rate": 0.02594033722438392
                   },
                   "planning": {
-                    "n_items": 2,
+                    "n_items": 1785,
                     "n_emitted_tags": 0,
                     "n_ungrounded_tags": 0,
                     "ungrounded_tag_rate": null,
@@ -439,7 +465,7 @@
                     "items_with_hallucination_rate": 0.0
                   },
                   "behavior": {
-                    "n_items": 2,
+                    "n_items": 595,
                     "n_emitted_tags": 0,
                     "n_ungrounded_tags": 0,
                     "ungrounded_tag_rate": null,
@@ -449,46 +475,51 @@
                 }
               },
               "overall": {
-                "n_items": 8,
+                "n_items": 4284,
                 "submetrics": {
                   "computed": [
                     {
                       "name": "accuracy",
-                      "n_items": 2,
-                      "score": 1.0
+                      "n_items": 1728,
+                      "score": 0.7731481481481481
                     },
                     {
                       "name": "language",
-                      "n_items": 2,
+                      "n_items": 595,
                       "score": {
-                        "val/Bleu_1": 0.9999999999166667,
-                        "val/Bleu_2": 0.9999999999147727,
-                        "val/Bleu_3": 0.9999999999126262,
-                        "val/Bleu_4": 0.9999999999101641,
-                        "val/ROUGE_L": 1.0,
-                        "val/CIDEr": 0.0
+                        "val/Bleu_1": 0.7247643811171572,
+                        "val/Bleu_2": 0.6668587782864892,
+                        "val/Bleu_3": 0.6106046270278634,
+                        "val/Bleu_4": 0.5553281779347371,
+                        "val/ROUGE_L": 0.6970606702092763,
+                        "val/CIDEr": 0.11945653418851875
                       }
                     }
                   ],
                   "omitted": [
                     {
                       "name": "chatgpt",
-                      "n_items": 2,
+                      "n_items": 1785,
                       "reason": "requires a paid, non-deterministic OpenAI API judge; not run (H2/H9)",
                       "effect": "the official composite final_score cannot be computed"
                     },
                     {
                       "name": "match",
-                      "n_items": 2,
+                      "n_items": 176,
                       "reason": "eval_match is fused with the same paid ChatGPT judge inside the vendored scorer (eval_chatGPT called internally) and cannot be computed without it",
                       "effect": "the official composite final_score cannot be computed"
                     }
                   ]
                 },
+                "majority_answer_baseline": {
+                  "n_items": 1728,
+                  "answer": "each category's own most common answer",
+                  "rate": 0.7146990740740741
+                },
                 "final_score": null
               },
-              "git_sha": "28f740432aaf45e91bf8f81de50a756a59565a16",
-              "created": "2026-09-28T21:42:41.795775+00:00"
+              "git_sha": "f86e0df384f1a90bddd7a5550f2db0e11b289ff1",
+              "created": "2026-10-02T00:27:04.605378+00:00"
             }
           }
         }

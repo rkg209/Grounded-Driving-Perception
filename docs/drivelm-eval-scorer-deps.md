@@ -33,10 +33,14 @@ uv pip install "git+https://github.com/bckim92/language-evaluation.git"
 uv run python -c "import language_evaluation; language_evaluation.download('coco')"
 ```
 
-The second command downloads the BLEU/ROUGE/CIDEr/METEOR reference assets (~60MB); only
+The second command downloads reference assets (~60MB; in the installed version it fetches Stanford
+CoreNLP for SPICE, which this repo never uses, so on Rudra it was skipped). Only
 BLEU/ROUGE_L/CIDEr are actually used (`coco_types=["BLEU", "ROUGE_L", "CIDEr"]` in the vendored
-file), and none of those three need Java — the upstream package's own setup notes mention Oracle
-Java only for METEOR/SPICE, which this repo never invokes.
+file). None of those three *metrics* need Java, but **importing `language_evaluation` does**: its
+`__init__` constructs a METEOR object, which spawns a `java` subprocess at import time, so a
+machine with no `java` on PATH fails with `FileNotFoundError: 'java'` before any scoring. (Found on
+Rudra, 2026-10-01; a laptop with Homebrew OpenJDK hid it.) On a cluster with no Java, unpack a JDK
+into scratch and symlink its `bin/java` into a directory already on the job's PATH (`$SCR/bin`).
 
 ## 3 · Verifying the install
 

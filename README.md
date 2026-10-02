@@ -28,9 +28,13 @@ model that produced it. The demo is a demo — it carries no accuracy number.
 
 ## About "risk assessment"
 
-Risk reasoning here is **measured, not asserted**: it is the accuracy on DriveLM's official
-planning/behaviour questions — real ground truth, real metric, reported beside the base model's
-score on the same split.
+Risk reasoning here is **measured, not asserted**, and only where DriveLM has ground truth for it.
+What is scored is the official `accuracy` on DriveLM's **behaviour** questions, reported beside the
+base model on the same split and beside a majority-answer baseline. DriveLM's **planning** questions
+have no score here at all: the official scorer judges them with a paid ChatGPT judge that this
+project never runs, so planning answers are shown qualitatively only. Behaviour is also the only
+category where the score is informative — perception and prediction accuracy items are almost all
+one answer, so a model matching that answer scores high without perceiving anything.
 
 What this project deliberately does **not** do is ship a hand-written rule-based hazard engine with
 a "risk detection accuracy" score. BDD100K is monocular with no calibration or depth ground truth,
@@ -145,11 +149,52 @@ The accuracy-vs-latency curve itself is written to `runs/05-deploy/<timestamp>/c
 ### Stage 2 — DriveLM VQA (base vs LoRA fine-tuned)
 
 <!-- BEGIN GENERATED: stage2-vqa -->
-> **Not yet measured.** Blocked on: **spec 08 cluster evaluation run (`sbatch scripts/slurm/vqa_eval.slurm`), which itself needs spec 06's real DriveLM conversion and spec 07's LoRA adapter**.
->
-> This block is written by `uv run gdp report snapshot && uv run gdp report render` — never typed by hand.
->
-> A run *does* exist (`runs/08-vqa/20260929-031240/comparison.json`), but last run was on tests/fixtures/ — not a result (H7). It is not rendered as a number, and no option makes it one.
+| DriveLM `accuracy` sub-metric | Base VLM (baseline) | LoRA fine-tuned | Δ | Majority-answer rate |
+|---|---:|---:|---:|---:|
+| Overall | 0.000 | 0.773 | +0.773 | 0.715 |
+
+Per official DriveLM category — `planning` and `behavior` **are** the risk-reasoning result; there is no separate risk engine and no separate risk metric (H9):
+
+| Category | Base VLM | LoRA fine-tuned | Δ | Majority-answer rate |
+|---|---:|---:|---:|---:|
+| `perception` | 0.000 | 0.926 | +0.926 | 0.926 |
+| `prediction` | 0.000 | 0.992 | +0.992 | 0.978 |
+| `planning` | not scored | not scored | not scored | not scored |
+| `behavior` | 0.000 | 0.417 | +0.417 | 0.261 |
+
+**Majority-answer rate** = how often the single most common ground-truth answer occurs among that category's accuracy-scored items — what a model that always emits it would score. It is a dataset statistic, not a model result (H9). A fine-tuned accuracy at or near it shows the model matches the answer prior, not that it perceives anything; read each Δ against it.
+
+**A base score of 0.000 mostly measures answer format.** The accuracy items expect short canonical answers (`No.`, `Going ahead.`); the base model answers in free text, so its exact-match score is zero by construction even where its free text is right. The fine-tune teaches the format as well as the content, so the jump from the base score is not a pure capability gain. The informative comparison is the fine-tuned score against the majority-answer rate.
+
+**Regressions:** none — no category lost ground under fine-tuning.
+
+`not scored` = the official `accuracy` sub-metric has no items in that category — it is not a zero. For `planning` that is because DriveLM judges it with a paid ChatGPT judge this project never runs; the category's answers are shown only qualitatively.
+
+**Official composite `final_score`: not computed — it is `null`, deliberately.**
+
+Composition, verbatim from the vendored scorer: `final_score = 0.4 * (chatgpt / 100) + 0.2 * (Bleu_1/4/3 + Bleu_2/4/3 + Bleu_3/4/3 + Bleu_4/4/3 + ROUGE_L/3 + CIDEr/10/3) + 0.2 * (match / 100) + 0.2 * accuracy [weights: chatgpt=0.4, language=0.2, match=0.2, accuracy=0.2] (third_party/drivelm/evaluation.py __main__ block, commit 266b570f1c746a4cad7f8f0317eb3c2f99141512)`
+
+| Official sub-metric | Items | Status |
+|---|---:|---|
+| `accuracy` | 1728 | computed — 0.773 |
+| `language` | 595 | computed (corpus-level, see the artifact for the per-metric breakdown) |
+| `chatgpt` | 1785 | **omitted** — requires a paid, non-deterministic OpenAI API judge; not run (H2/H9) |
+| `match` | 176 | **omitted** — eval_match is fused with the same paid ChatGPT judge inside the vendored scorer (eval_chatGPT called internally) and cannot be computed without it |
+
+Two of the four weighted components need a paid, non-deterministic OpenAI judge this repo never calls, so the composite cannot be computed honestly. It is reported as missing, with the reason, rather than silently replaced by the two components that do run — see `third_party/drivelm/PROVENANCE.md`'s "Known gap".
+
+Hallucination diagnostic (base vs fine-tuned, same split):
+
+| Diagnostic | Base VLM | LoRA fine-tuned | Δ |
+|---|---:|---:|---:|
+| Ungrounded object-tag rate | 1.000 | 0.009 | -0.991 |
+| Answers with ≥1 ungrounded tag | 0.137 | 0.005 | -0.133 |
+
+> **Not an official DriveLM metric.** self-defined diagnostic, not part of DriveLM's official metric (H9).
+
+> **Not comparable to the DriveLM leaderboard.** DriveLM-nuScenes' answered file contains only nuScenes-train scenes (696/696); its official val/test answers are withheld and scored only by DriveLM's own server. This val is a seeded (seed 42) 15% scene-level holdout of the answered train file, scene-clean, evaluated on DriveLM's own extract_data.py selection with its own scorer. It is NOT the official DriveLM val/test split and NOT leaderboard-comparable.
+
+_Source: `runs/08-vqa/20261002-055700/comparison.json` (sha256 `be96cc161602…`) · 4284 val items · val split sha256 `3344f4384ced…` · split provenance: seeded scene-level holdout of DriveLM's answered train file — holdout.json (gdp.data.drivelm.select_holdout_scenes) · scorer sha256 `9ae51084bdbb…` · decoding: max_new_tokens=128, do_sample=False, num_beams=1 · base run 2026-10-02T00:27:03.054429+00:00 · fine-tuned run 2026-10-02T00:27:04.605378+00:00._
 <!-- END GENERATED: stage2-vqa -->
 
 ## Failure analysis
@@ -160,7 +205,9 @@ the ground-truth answer, **both** models' predictions, and an automatic unground
 
 The per-item commentary fields are left **empty for a human to fill in**. An LLM writing the
 commentary on an LLM's own failures is an unfalsifiable artifact, so the tool scaffolds and a person
-judges. Like the tables above, this file is pending until spec 08's evaluation run happens.
+judges. `runs/08-vqa/<timestamp>/failures.md` exists for the real run, scaffolded with 40 sampled
+items; the commentary fields are still empty and are filled in by hand, so there is no written
+failure analysis yet.
 
 ## Honest scope — what this is NOT
 
@@ -228,12 +275,19 @@ runs offline against a synthetic 4-scene fixture (`tests/fixtures/mini_drivelm/`
 (`docs/drivelm-download.md`) needs nuScenes + DriveLM registered and downloaded separately.
 
 **The split is not the DriveLM leaderboard split.** DriveLM-nuScenes' challenge val/test answers
-are withheld behind EvalAI, so `train.jsonl`/`val.jsonl` instead partition DriveLM's *answered*
-train file by the **official nuScenes `v1.0-trainval` scene lists** (700 train / 150 val scenes,
-vendored with provenance in `src/gdp/data/nuscenes_splits.json`) — scene-clean by construction, so
-no near-duplicate 2 Hz frame from the same drive can appear in both train and val. Every artifact
-this pipeline writes carries a `caveat` field naming this explicitly (never silently); see
-`specs/06-data-drivelm.md`'s status note for the full resolution.
+are withheld behind EvalAI, and DriveLM's answered file contains only nuScenes-*train* scenes
+(696 of 696), so the official nuScenes val list selects nothing. `val.jsonl` is therefore a **seeded
+(seed 42) scene-level holdout** of that answered file (104 scenes, 4,284 QA items), fixed before
+any model output existed and scene-clean by construction — no frame from a held-out drive appears in
+training. It is **not** DriveLM's official val and is not comparable to its leaderboard (that
+needs a submission to DriveLM's own server). Every artifact this pipeline writes carries a `caveat`
+field naming this; see `specs/06-data-drivelm.md`'s status note.
+
+**What the Stage-2 adapter was trained on.** To fit the cluster budget and RAM, training used a
+seeded **scene subsample** of the remaining train scenes — 148 of 592 scenes, 83,591 QA pairs
+(`subsample.json` records it) — for **one epoch** (10,448 steps; run in two segments, resumed from a
+checkpoint at step 6,400, with the epoch reshuffled at the resume). The holdout is never subsampled.
+Read any Stage-2 number as "fine-tuned on 148 of 592 train scenes, evaluated on the full holdout".
 
 ### The demo
 
