@@ -33,8 +33,9 @@ PENDING_TEMPLATE = (
 
 NOT_SCORED = "not scored"
 NOT_SCORED_NOTE = (
-    f"`{NOT_SCORED}` = the official scorer returned no score for that subset "
-    "(no items of that type in the split) — it is not a zero."
+    f"`{NOT_SCORED}` = the official `accuracy` sub-metric has no items in that category — it is "
+    "not a zero. For `planning` that is because DriveLM judges it with a paid ChatGPT judge this "
+    "project never runs; the category's answers are shown only qualitatively."
 )
 
 
@@ -361,13 +362,20 @@ def render_stage2_vqa(entry: dict[str, Any]) -> list[str]:
 
     overall = d.get("overall_accuracy") or {}
     lines = _table(
-        ["DriveLM `accuracy` sub-metric", "Base VLM (baseline)", "LoRA fine-tuned", "Δ"],
+        [
+            "DriveLM `accuracy` sub-metric",
+            "Base VLM (baseline)",
+            "LoRA fine-tuned",
+            "Δ",
+            "Majority-answer rate",
+        ],
         [
             [
                 "Overall",
                 _fmt(overall.get("before")),
                 _fmt(overall.get("after")),
                 _delta(overall.get("delta")),
+                _majority(overall.get("majority_answer_baseline")),
             ]
         ],
     )
@@ -383,17 +391,36 @@ def render_stage2_vqa(entry: dict[str, Any]) -> list[str]:
             "",
         ]
         lines += _table(
-            ["Category", "Base VLM", "LoRA fine-tuned", "Δ"],
+            ["Category", "Base VLM", "LoRA fine-tuned", "Δ", "Majority-answer rate"],
             [
                 [
                     f"`{c}`",
                     _fmt(per_category[c].get("before")),
                     _fmt(per_category[c].get("after")),
                     _delta(per_category[c].get("delta")),
+                    _majority(per_category[c].get("majority_answer_baseline")),
                 ]
                 for c in categories
             ],
         )
+        lines += [
+            "",
+            "**Majority-answer rate** = how often the single most common ground-truth answer "
+            "occurs among that category's accuracy-scored items — what a model that always emits "
+            "it would score. It is a dataset statistic, not a model result (H9). A fine-tuned "
+            "accuracy at or near it shows the model matches the answer prior, not that it "
+            "perceives anything; read each Δ against it.",
+        ]
+        if (overall.get("before") or 0) == 0:
+            lines += [
+                "",
+                "**A base score of 0.000 mostly measures answer format.** The accuracy items "
+                "expect short canonical answers (`No.`, `Going ahead.`); the base model answers "
+                "in free text, so its exact-match score is zero by construction even where its "
+                "free text is right. The fine-tune teaches the format as well as the content, "
+                "so the jump from the base score is not a pure capability gain. The informative "
+                "comparison is the fine-tuned score against the majority-answer rate.",
+            ]
 
     lines += ["", _regression_line(d.get("regressions"), unit="category")]
     lines += ["", NOT_SCORED_NOTE]
@@ -436,6 +463,12 @@ def render_stage2_vqa(entry: dict[str, Any]) -> list[str]:
         ],
     )
     return lines
+
+
+def _majority(node: Any) -> str:
+    if not isinstance(node, dict) or node.get("rate") is None:
+        return NOT_SCORED
+    return _fmt(node["rate"])
 
 
 def _decoding(generation: Any) -> str:

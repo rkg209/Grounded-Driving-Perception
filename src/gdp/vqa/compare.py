@@ -57,6 +57,10 @@ def build_vqa_comparison(base: dict[str, Any], finetuned: dict[str, Any]) -> dic
     regressions: list[str] = []
     for category in DRIVELM_CATEGORIES:
         entry = _accuracy_delta(base["per_category"][category], finetuned["per_category"][category])
+        # Same ground truth for both models, so one number; read from the base record.
+        entry["majority_answer_baseline"] = base["per_category"][category].get(
+            "majority_answer_baseline"
+        )
         per_category[category] = entry
         if entry["delta"] is not None and entry["delta"] < 0:
             regressions.append(category)
@@ -70,7 +74,10 @@ def build_vqa_comparison(base: dict[str, Any], finetuned: dict[str, Any]) -> dic
         "final_score": None,
         "base_created": base.get("created"),
         "finetuned_created": finetuned.get("created"),
-        "overall_accuracy": _accuracy_delta(base["overall"], finetuned["overall"]),
+        "overall_accuracy": {
+            **_accuracy_delta(base["overall"], finetuned["overall"]),
+            "majority_answer_baseline": base["overall"].get("majority_answer_baseline"),
+        },
         "per_category_accuracy": per_category,
         "regressions": sorted(regressions),
     }

@@ -81,8 +81,23 @@ def _score_subset(predictions: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "n_items": len(predictions),
         "submetrics": {"computed": computed, "omitted": omitted},
+        "majority_answer_baseline": _majority_answer_baseline(predictions),
         "final_score": None,
     }
+
+
+def _majority_answer_baseline(predictions: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """How often the single most common ground-truth answer occurs among this subset's tag-0
+    items — the ones the official `accuracy` sub-metric scores (`annotate_per_item` uses the same
+    rule). A dataset statistic, not a model metric (H9): a model that always emits that answer
+    scores this much by construction, so an accuracy near it shows prior-matching, not skill.
+    DriveLM's perception/prediction accuracy items have 2-3 distinct answers; without this number
+    beside them a 0.93 reads as perception ability. `None` if the subset has no tag-0 items."""
+    answers = [p["gt_answer"].strip() for p in predictions if 0 in p.get("tag", [])]
+    if not answers:
+        return None
+    answer, count = Counter(answers).most_common(1)[0]
+    return {"n_items": len(answers), "answer": answer, "rate": count / len(answers)}
 
 
 def score_predictions(
@@ -95,6 +110,17 @@ def score_predictions(
         category: _score_subset([p for p in predictions if p["category"] == category])
         for category in DRIVELM_CATEGORIES
     }
+    # The pooled subset's own majority is meaningless (its answers span three question families), so
+    # the overall baseline is what a predictor that emits each category's majority answer would
+    # score on the same items: the item-weighted mean of the per-category rates.
+    parts = [b for b in (c["majority_answer_baseline"] for c in per_category.values()) if b]
+    if parts:
+        total = sum(b["n_items"] for b in parts)
+        overall["majority_answer_baseline"] = {
+            "n_items": total,
+            "answer": "each category's own most common answer",
+            "rate": sum(b["n_items"] * b["rate"] for b in parts) / total,
+        }
     return {"overall": overall, "per_category": per_category}
 
 
